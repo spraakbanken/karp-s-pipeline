@@ -1,11 +1,15 @@
+from datetime import datetime
 import glob
-import json
 import os
+from pathlib import Path
 import sys
+import traceback
 from typing import Iterator
 
 import yaml
 
+from karpspipeline.common import Map, create_error_dir
+from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
 from karpspipeline.models import (
     Entry,
@@ -16,27 +20,29 @@ from karpspipeline.models import (
 )
 from karpspipeline import karps
 
+__all__ = ["main"]
+
 
 class ImportException(Exception):
     pass
 
 
-type_lookup = {int: "integer", str: "text", bool: "bool"}
+type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool"}
 
 
 def check(key: str, field: Field, values: object) -> None:
-    if bool(field.get("collection")) != isinstance(values, list):
+    if bool(field.collection) != isinstance(values, list):
         raise ImportException(f'Mismatch, field: "{key}"')
     if not isinstance(values, list):
         values = [values]
-    field_type = field["type"]
+    field_type = field.type
     for value in values:
         expected_type_name = type_lookup[type(value)]
         if field_type != expected_type_name:
             raise ImportException(f'Mismatch, field: "{key}"')
 
 
-def create_fields(entries: Iterator[Entry]) -> EntrySchema:
+def create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
     schema = {}
     res = []
     for entry in entries:
@@ -52,13 +58,16 @@ def create_fields(entries: Iterator[Entry]) -> EntrySchema:
                     field["collection"] = True
                     # check that all values have the same type by using type and counting
                     x = [type(value) for value in values]
-                    x.count(x[0]) == len(x)
+                    if x.count(x[0]) != len(x):
+                        raise ImportException(
+                            "Not all values in collection have the same type"
+                        )
                     typ = x[0]
                 else:
                     typ = type(values)
                 field["type"] = type_lookup[typ]
-                print(f"Adding {key} = {json.dumps(field, ensure_ascii=False)}")
-                schema[key] = field
+                print(f"Adding {key} = {json.dumps(field)}")
+                schema[key] = Field.model_validate(field)
 
     return schema, res
 
@@ -72,7 +81,9 @@ def validate_entry(fields: EntrySchema, entry: Entry) -> None:
         check(key, fields[key], entry[key])
 
 
-def import_resource(resource_config: ResourceConfig | None) -> EntrySchema:
+def import_resource(
+    resource_config: ResourceConfig | None,
+) -> tuple[EntrySchema, list[Entry]]:
     """
     Checks that the source-files contain entries adhering to resource_config
     Moves the file to output/<resource_id>.jsonl
@@ -89,11 +100,10 @@ def import_resource(resource_config: ResourceConfig | None) -> EntrySchema:
         def get_entries(fp) -> Iterator[Entry]:
             for line in fp:
                 entry = json.loads(line)
-                print("Processing: ", json.dumps(entry, ensure_ascii=False))
                 yield entry
 
         entries = get_entries(fp)
-        fields = resource_config.get("fields") if resource_config else None
+        fields = resource_config.fields if resource_config else None
         if fields:
             res = []
             for entry in entries:
@@ -115,41 +125,86 @@ def run(config: PipelineConfig) -> None:
     except ImportException as e:
         print(str(e))
         sys.exit(1)
-    print("Using entry schema: " + json.dumps(entry_schema, ensure_ascii=False))
-    if "karps" in config.export:
-        karps.export(config, entries)
+    print("Using entry schema: " + json.dumps(entry_schema))
+    # if "karps" in config.export:
+    #     karps.export(config, entries)
 
 
 def install(config: PipelineConfig) -> None:
     """
     TODO here we assume that the run is done
     """
-    if "karps" in config:
+    if "karps" in config.export:
         karps.install(config)
 
 
-def main() -> None:
+def _merge_configs(main_config: Map, resource_config: Map) -> Map:
     """
-    run - prepares the material
-    install - adds the material to the requested system
-        karps-pipeline install karps (karps-backend)
-        karps-pipeline install sbx-repo (add resources to some repo, don't know where yet)
-        karps-pipeline install sbx-metadata (add resources to some repo, don't know where yet)
-        karps-pipeline install all (do all of the above)
+    Overwrites main_config with values from resource_config
     """
+    for key, value in resource_config.items():
+        main_val = main_config.get(key)
+        if main_val and isinstance(main_val, dict) and isinstance(value, dict):
+            main_config[key] = _merge_configs(main_val, value)
+        else:
+            main_config[key] = value
+    return main_config
+
+
+def load_config() -> PipelineConfig:
+    if main_config_path := os.getenv("KARPSPIPELINE_CONFIG"):
+        with open(main_config_path) as fp:
+            print(f"Reading main config from: {main_config_path}")
+            main_config = yaml.safe_load(fp)
+    else:
+        main_config = {}
+    with open("config.yaml") as fp:
+        print("Reading config.yaml")
+        resource_config = yaml.safe_load(fp)
+        merged_config = _merge_configs(main_config, resource_config)
+        print(json.dumps(merged_config))
+        asdf = PipelineConfig.model_validate(merged_config)
+        print(asdf)
+        return asdf
+
+
+def main() -> int:
     os.system("")
     if len(sys.argv) != 2:
-        print(f"{bold('Usage:')} karps-pipeline run")
-        sys.exit(1)
+        print(f"{bold('Usage:')} karps-pipeline run/install")
+        print()
+        print(f"{bold('run')} - prepares the material")
+        print(f"{bold('install')} - adds the material to the requested system")
+        print()
+        print("karps-pipeline install karps (karps-backend)")
+        print(
+            "karps-pipeline install sbx-repo (add resources to some repo, don't know where yet)"
+        )
+        print(
+            "karps-pipeline install sbx-metadata (add resources to some repo, don't know where yet)"
+        )
+        print("karps-pipeline install all (do all of the above)")
+        print()
+        print(
+            "Set environment variable KARPSPIPELINE_CONFIG to a config.yaml which will be merged with the project ones"
+        )
+        return 1
 
-    with open("config.yaml") as fp:
-        config = PipelineConfig(**yaml.safe_load(fp))
-        print("Reading config.yaml")
+    try:
+        config = load_config()
 
-    if sys.argv[1] == "run":
-        run(config)
+        if sys.argv[1] == "run":
+            run(config)
 
-    if sys.argv[1] == "install":
-        install(config)
+        if sys.argv[1] == "install":
+            install(config)
+    except Exception:
+        print("error.")
+        create_error_dir()
+        filename = Path("error") / (datetime.now().strftime("%Y-%m-%d") + ".log")
+        with open(filename, "w") as f:
+            traceback.print_exc(file=f)
+        return 1
 
     print("done.")
+    return 0

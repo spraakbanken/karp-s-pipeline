@@ -1,10 +1,10 @@
-import json
-from typing import Iterator
+from typing import Iterable, Iterator
 
 import yaml
 
 from karpspipeline.common import create_output_dir
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig
+from karpspipeline.util import json
 
 
 def create_karps_backend_config(pipeline_config: PipelineConfig):
@@ -23,7 +23,7 @@ def create_karps_backend_config(pipeline_config: PipelineConfig):
         yaml.dump(backend_config, fp)
 
 
-def create_karps_sql(pipeline_config: PipelineConfig, entries: Iterator[Entry]):
+def create_karps_sql(pipeline_config: PipelineConfig, entries: Iterable[Entry]):
     def schema(table_name: str, structure: EntrySchema) -> str:
         """
         Find schema automatically by going through all elements
@@ -66,7 +66,7 @@ def create_karps_sql(pipeline_config: PipelineConfig, entries: Iterator[Entry]):
             def sqlify_values(values):
                 for val in values:
                     if isinstance(val, list):
-                        yield format_str(json.dumps(val, ensure_ascii=False))
+                        yield format_str(json.dumps(val))
                     elif val is None:
                         yield "NULL"
                     elif isinstance(val, str):
