@@ -5,7 +5,7 @@ class GitRepo:
     def __init__(self, repo_path):
         self.repo_path = repo_path
 
-    def _run(self, args):
+    def _run(self, *args):
         try:
             subprocess.run(
                 ["git", *args],

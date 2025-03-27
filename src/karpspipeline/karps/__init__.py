@@ -1,22 +1,28 @@
 from typing import Iterable
-from karpspipeline.models import Entry, PipelineConfig
+
+from karpspipeline.common import create_output_dir
+from karpspipeline.karps.install import add_config, add_to_db
+from karpspipeline.karps.models import KarpsConfig
+from karpspipeline.models import Entry, PipelineConfig, FieldConfig
 from karpspipeline.karps.export import create_karps_backend_config, create_karps_sql
 
 __all__ = ["export", "install"]
 
 
-def export(config: PipelineConfig, entries: Iterable[Entry]):
-    create_karps_backend_config(config)
-    create_karps_sql(config, entries)
-    export_config = config.export
-    if isinstance(export_config["karps"], dict) and export_config["karps"].get(
-        "install"
-    ):
-        # 1. get db credentials
-        # 2. run "cat karps/data.sql > mysql -u <user> -p <password> <database>
-        # 3. get backend config directory <bcd>
-        # 4. mv karps/<resource_id>.yaml <bcd>
-        pass
+def _get_karps_config(config):
+    return KarpsConfig.model_validate(config.export["karps"])
 
 
-def install(config: PipelineConfig): ...
+def export(config: PipelineConfig, resource_config: FieldConfig, entries: Iterable[Entry]):
+    create_output_dir()
+    karps_config = _get_karps_config(config)
+
+    size = create_karps_sql(config, resource_config, entries)
+    create_karps_backend_config(config, karps_config, resource_config, size)
+
+
+def install(pipeline_config: PipelineConfig):
+    karps_config = _get_karps_config(pipeline_config)
+
+    add_to_db(pipeline_config.resource_id, karps_config)
+    add_config(karps_config, pipeline_config.resource_id)

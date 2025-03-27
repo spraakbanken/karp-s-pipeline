@@ -12,7 +12,10 @@ def custom_serializer(obj: object) -> object:
 
 
 def dumps(obj: object) -> str:
-    return orjson.dumps(obj, default=custom_serializer).decode()
+    return orjson.dumps(
+        obj,
+        default=custom_serializer,
+    ).decode()
 
 
 def loads(str: str) -> Map:
