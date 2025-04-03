@@ -18,7 +18,7 @@ dev = [
 ]
 
 [project.scripts]
-karps-pipeline = "karpspipeline:main"
+karps-pipeline = "karpspipeline.cli:cli"
 
 [build-system]
 requires = ["hatchling"]

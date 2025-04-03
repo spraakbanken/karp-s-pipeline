@@ -1,11 +1,11 @@
 from pydantic import BaseModel, RootModel, field_validator
 
 type Entry = dict[str, object]
-type EntrySchema = dict[str, Field]
+type EntrySchema = dict[str, InferredField]
 
 
 # TODO Does not need validation, transform to data class
-class Field(BaseModel):
+class InferredField(BaseModel):
     type: str
     collection: bool = False
 
@@ -33,6 +33,13 @@ class MultiLang(RootModel[str | dict[str, str]]):
         return value
 
 
+class ConfiguredField(BaseModel):
+    name: str
+    type: str
+    collection: bool = False
+    label: MultiLang
+
+
 class PipelineConfig(BaseModel):
     class Config:
         extra = "forbid"
@@ -42,3 +49,6 @@ class PipelineConfig(BaseModel):
     description: MultiLang | None = None
     # the elements of type object will be handled by the exporters models
     export: dict[str, object]
+    # main field list, master order and configuration, new fields may be added or aliased to existing fields
+    # the entry word field WORD is not in this list and is always the first element, wether used directly or as alias
+    fields: list[ConfiguredField]

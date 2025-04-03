@@ -19,8 +19,8 @@ class GitRepo:
 
     def init(self):
         self._run("init")
-        self._run("commit", "-m", "init", "--allow-empty")
+        self._run("commit", "--message", "init", "--allow-empty")
 
-    def commit_all(self):
-        self._run("add", "-A")
-        self._run("commit", "-m", "updated by pipeline")
+    def commit_all(self, msg=None):
+        self._run("add", "--all")
+        self._run("commit", "--message", msg)

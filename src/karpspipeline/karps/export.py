@@ -1,11 +1,11 @@
 import time
 from typing import Iterable, Iterator
 
-import yaml
 
+from karpspipeline.common import create_output_dir
 from karpspipeline.karps.models import KarpsConfig
 from karpspipeline.models import Entry, EntrySchema, FieldConfig, PipelineConfig
-from karpspipeline.util import json
+from karpspipeline.util import json, yaml
 
 
 def create_karps_backend_config(
@@ -13,30 +13,33 @@ def create_karps_backend_config(
     karps_config: KarpsConfig,
     field_config: FieldConfig,
     size: int,
+    fields: list[dict[str, str]],
 ):
+    # these fields might already be present in backend config, install must merge this file and backend fields.yaml
+    with open(create_output_dir() / "fields.yaml", "w") as fp:
+        yaml.dump(fields, fp)
+
     backend_config = {
         "resource_id": pipeline_config.resource_id,
         "label": pipeline_config.name.model_dump(),
-        "fields": [],
+        # TODO sort
+        "fields": list(field_config.fields.keys()),
         "word": karps_config.word,
         "size": size,
         "link": karps_config.link,
         "updated": int(time.time()),
     }
+    if karps_config.word not in backend_config["fields"]:
+        raise ImportError(f"word: {karps_config.word}, but {karps_config.word} is not available in the resource")
     if karps_config.tags:
         backend_config["tags"] = karps_config.tags
     if pipeline_config.description:
         backend_config["description"] = pipeline_config.description.model_dump()
     if karps_config.word_description:
         backend_config["word_description"] = karps_config.word_description.model_dump()
-    for key, val in field_config.fields.items():
-        field: dict[str, object] = {"name": key, "type": val.type}
-        if val.collection:
-            field["collection"] = True
-        backend_config["fields"].append(field)
 
     with open(f"output/{pipeline_config.resource_id}_karps.yaml", "w") as fp:
-        yaml.dump(backend_config, fp, allow_unicode=True)
+        yaml.dump(backend_config, fp)
 
 
 def create_karps_sql(
