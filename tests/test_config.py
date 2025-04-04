@@ -1,4 +1,3 @@
-
 from karpspipeline.common import Map
 from karpspipeline.config import _merge_configs
 from karpspipeline.util import json
