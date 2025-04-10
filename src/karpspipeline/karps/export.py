@@ -62,11 +62,11 @@ def create_karps_sql(
                     column_type = "TEXT"
                 else:
                     raise Exception("unknown column type", field.type)
-                yield f"{field_name} {column_type}"
+                yield f"`{field_name}` {column_type}"
 
         return f"""
-        DROP TABLE IF EXISTS {table_name};
-        CREATE TABLE {table_name} (
+        DROP TABLE IF EXISTS `{table_name}`;
+        CREATE TABLE `{table_name}` (
             {",\n".join(inner())}
         )
         CHARACTER SET utf8mb4
@@ -84,6 +84,7 @@ def create_karps_sql(
                 """
                 Wrap string in single quotes, escape single quotes and newlines
                 """
+                # replace all single quotes not already escaped
                 return f"'{val.replace("'", "\\'").replace('\n', '\\n')}'"
 
             def sqlify_values(values):
@@ -102,7 +103,7 @@ def create_karps_sql(
 
             values = sqlify_values(entry.values())
 
-            yield f"INSERT INTO {pipeline_config.resource_id} ({', '.join(columns)}) VALUES ({', '.join(values)});\n"
+            yield f"INSERT INTO `{pipeline_config.resource_id}` ({', '.join(f'`{column}`' for column in columns)}) VALUES ({', '.join(values)});\n"
 
     size = 0
     with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:
