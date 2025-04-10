@@ -146,7 +146,7 @@ def _update_fields(karps_config: KarpsConfig, pipeline_config: PipelineConfig):
                 if (
                     new_field["type"] != field_lookup[new_field["name"]]["type"]
                     or new_field.get("collection", False) != field_lookup[new_field["name"]].get("collection", False)
-                    or (new_label and new_label != field_lookup[new_field["name"]]["label"])
+                    or (new_label and new_label != field_lookup[new_field["name"]].get("label"))
                 ):
                     raise InstallException(
                         f"There already exists a field called {new_field['name']} with different settings"
