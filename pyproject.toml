@@ -15,6 +15,7 @@ dependencies = [
 dev = [
     "ruff",
     "pytest",
+    "basedpyright",
 ]
 
 [project.scripts]
