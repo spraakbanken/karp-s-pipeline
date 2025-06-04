@@ -4,8 +4,8 @@ from typing import Iterable, Iterator
 
 from karpspipeline.common import create_output_dir
 from karpspipeline.karps.models import KarpsConfig
-from karpspipeline.models import Entry, EntrySchema, FieldConfig, PipelineConfig
-from karpspipeline.util import json, yaml
+from karpspipeline.models import Entry, EntrySchema, FieldConfig, PipelineConfig, InferredField
+from karpspipeline.util import yaml
 
 
 def create_karps_backend_config(
@@ -52,60 +52,108 @@ def create_karps_sql(
         Find schema automatically by going through all elements
         """
 
-        def inner():
-            for field_name, field in structure.items():
+        def delete_statement(table_name) -> str:
+            """
+            Each resource with collections produces multiple tables, prefixed with {resource_id}__ and these statements
+            removed them dynamically
+            """
+            return f"""
+            SELECT CONCAT('DROP TABLE IF EXISTS `', GROUP_CONCAT(TABLE_NAME SEPARATOR '`, `'), '`;')
+            INTO @drop_stmt FROM information_schema.TABLES 
+            WHERE TABLE_SCHEMA = 'karps_local' AND TABLE_NAME LIKE '{table_name}__%';
+            SET @run_stmt = IF(@drop_stmt IS NOT NULL, @drop_stmt, 'SELECT "No tables to drop";');
+            PREPARE stmt FROM @run_stmt;
+            EXECUTE stmt;
+            DEALLOCATE PREPARE stmt;
+            DROP TABLE IF EXISTS `{table_name}`;
+            """
+
+        def inner(_structure):
+            tables = []
+            fields = []
+            for field_name, field in _structure.items():
                 if field.collection:
-                    column_type = "JSON"
-                elif field.type == "integer":
-                    column_type = "INT"
-                elif field.type == "text":
-                    column_type = "TEXT"
-                elif field.type == "float":
-                    column_type = "FLOAT"
+                    field_copy = InferredField(type=field.type, collection=False)
+                    # currently single field, but could support collection: true & type: object in future
+                    _, inner_fields = inner({"value": field_copy})
+                    inner_table_name = f"{table_name}__{field_name}"
+                    tables.append(f"""
+                    CREATE TABLE `{inner_table_name}` (
+                        {",\n".join(inner_fields)},
+                        __parent_id INT,
+                        FOREIGN KEY (__parent_id) REFERENCES `{table_name}`(__id)
+                    )
+                    CHARACTER SET utf8mb4
+                    COLLATE utf8mb4_swedish_ci;
+                    """)
                 else:
-                    raise Exception("unknown column type", field.type)
-                yield f"`{field_name}` {column_type}"
+                    if field.type == "integer":
+                        column_type = "INT"
+                    elif field.type == "text":
+                        column_type = "TEXT"
+                    elif field.type == "float":
+                        column_type = "FLOAT"
+                    else:
+                        raise Exception("unknown column type", field.type)
+                    fields.append(f"`{field_name}` {column_type}")
+            return tables, fields
+
+        tables, fields = inner(structure)
 
         return f"""
-        DROP TABLE IF EXISTS `{table_name}`;
+        {delete_statement(table_name)}
         CREATE TABLE `{table_name}` (
-            {",\n".join(inner())}
+            __id INT PRIMARY KEY,
+            {",\n".join(fields)}
         )
         CHARACTER SET utf8mb4
         COLLATE utf8mb4_swedish_ci;
-        """
+        """ + "".join(tables)
 
     def entries_sql() -> Iterator[str]:
-        for entry in entries:
-            columns = entry.keys()
-
-            def json_escape(val):
-                return val.replace('"', '\\"')
+        for idx, entry in enumerate(entries):
 
             def format_str(val):
                 """
-                Wrap string in single quotes, escape single quotes and newlines
+                Wrap string in single quotes, escape backslashes and single quotes
                 """
-                # replace all single quotes not already escaped
-                return f"'{val.replace("'", "\\'").replace('\n', '\\n')}'"
+                return f"'{val.replace('\\', '\\\\').replace("'", "\\'").replace('\n', '\\n')}'"
 
-            def sqlify_values(values):
-                for val in values:
+            def format_value(val):
+                if val is None:
+                    return "NULL"
+                elif isinstance(val, str):
+                    return format_str(val)
+                elif isinstance(val, int) or isinstance(val, float):
+                    return str(val)
+                else:
+                    raise Exception("unknown type")
+
+            def sqlify_values(entry):
+                """
+                if values are scalar, they must be formatted/encoded in a wway that makes sense for MySQL
+                if values are lists, they must be transformed into a separate INSERT statement with a ref to parent (idx from closure)
+                """
+                inserts = []
+                columns = []
+                main_values = []
+                for field_name, val in entry.items():
                     if isinstance(val, list):
-                        fmted = json.dumps([json_escape(x) for x in val])
-                        yield format_str(fmted)
-                    elif val is None:
-                        yield "NULL"
-                    elif isinstance(val, str):
-                        yield format_str(val)
-                    elif isinstance(val, int) or isinstance(val, float):
-                        yield str(val)
-                    else:
-                        raise Exception("unknown type")
+                        for x in val:
+                            inserts.append(
+                                f"INSERT INTO `{pipeline_config.resource_id}__{field_name}` (__parent_id, value) VALUES ({idx}, {format_value(x)});\n"
+                            )
+                    elif val is not None:
+                        columns.append(field_name)
+                        main_values.append(format_value(val))
+                return inserts, columns, main_values
 
-            values = sqlify_values(entry.values())
+            inserts, columns, values = sqlify_values(entry)
 
-            yield f"INSERT INTO `{pipeline_config.resource_id}` ({', '.join(f'`{column}`' for column in columns)}) VALUES ({', '.join(values)});\n"
+            # first emit the main entry
+            yield f"INSERT INTO `{pipeline_config.resource_id}` (`__id`, {', '.join(f'`{column}`' for column in columns)}) VALUES ({idx}, {', '.join(values)});\n"
+            # then emit rows depending on main entry
+            yield from inserts
 
     size = 0
     with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:

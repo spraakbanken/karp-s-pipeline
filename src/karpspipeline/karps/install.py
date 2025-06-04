@@ -43,6 +43,7 @@ def add_to_db(resource_id, karps_config):
                     buffer.append(line)
                     if line[-1] == ";":
                         cursor.execute(" ".join(buffer))
+                        cursor.fetchall()
                         buffer = []
 
 
