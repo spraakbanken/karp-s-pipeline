@@ -143,20 +143,26 @@ def _update_fields(karps_config: KarpsConfig, pipeline_config: PipelineConfig):
         for new_field in fields:
             new_label = new_field.get("label")
             if new_field["name"] in field_lookup:
-                # make sure they're the same
-                if (
-                    new_field["type"] != field_lookup[new_field["name"]]["type"]
-                    or new_field.get("collection", False) != field_lookup[new_field["name"]].get("collection", False)
-                    or (new_label and new_label != field_lookup[new_field["name"]].get("label"))
-                ):
-                    raise InstallException(
-                        f"There already exists a field called {new_field['name']} with different settings"
-                    )
+                # update resource list
                 field_resources = field_lookup[new_field["name"]]["resource_id"]
-                if isinstance(field_resources, list):
-                    # make sure that reosurces aren't duplicated
+                if isinstance(field_resources, list):  # this is for typechecking
                     field_resources.append(pipeline_config.resource_id)
                     field_resources = list(set(field_resources))
+                    field_lookup[new_field["name"]]["resource_id"] = field_resources
+                if field_resources == [pipeline_config.resource_id]:
+                    # if the field is used only by current resource, allow overwrites
+                    field_lookup[new_field["name"]].update(new_field)
+                else:
+                    # no changes to other resources are allowed
+                    if (
+                        new_field["type"] != field_lookup[new_field["name"]]["type"]
+                        or new_field.get("collection", False)
+                        != field_lookup[new_field["name"]].get("collection", False)
+                        or (new_label and new_label != field_lookup[new_field["name"]].get("label"))
+                    ):
+                        raise InstallException(
+                            f"There already exists a field called {new_field['name']} with different settings"
+                        )
             else:
                 new_field["resource_id"] = [pipeline_config.resource_id]
                 new_fields.append(new_field)
