@@ -4,6 +4,7 @@ from collections.abc import Iterator
 from typing import cast
 
 from karpspipeline import karps
+from karpspipeline import csvmetadata
 from karpspipeline.common import ImportException
 from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
@@ -20,13 +21,24 @@ from karpspipeline.models import (
 type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
 
 
-def run(config: PipelineConfig) -> None:
+def run(config: PipelineConfig, subcommand: str = "all") -> None:
     entry_schema, entries = import_resource(config)
     field_config = FieldConfig(fields=entry_schema)
     fields = compare_to_current_fields(config, field_config)
     print("Using entry schema: " + json.dumps(entry_schema))
-    if "karps" in config.export:
+    run_all = False
+    if subcommand == "all":
+        run_all = True
+    cmd_found = False
+    if run_all or (subcommand == "karps" and "karps" in config.export):
         karps.export(config, field_config, entries, fields)
+        cmd_found = True
+    if run_all or subcommand == "csvmetadata":
+        csvmetadata.export(config, field_config, entries, fields)
+        cmd_found = True
+
+    if not cmd_found:
+        raise ImportException(f"Subcommand '{subcommand}' not available.")
 
 
 def check(key: str, field: InferredField, values: object) -> None:

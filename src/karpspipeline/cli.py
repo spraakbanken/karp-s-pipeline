@@ -20,12 +20,14 @@ def clean() -> None:
 
 def cli():
     os.system("")
-    if len(sys.argv) != 2:
+    if len(sys.argv) > 3:
         print(f"{bold('Usage:')} karps-pipeline run/install")
         print()
         print(f"{bold('run')} - prepares the material")
         print(f"{bold('install')} - adds the material to the requested system")
         print(f"{bold('clean')} - remove genereated files")
+        print()
+        print("karps-pipeline run csv-metadata")
         print()
         print("karps-pipeline install karps (karps-backend)")
         print("karps-pipeline install sbx-repo (add resources to some repo, don't know where yet)")
@@ -45,7 +47,10 @@ def cli():
 
             if sys.argv[1] == "run":
                 # run calls importers and exporters
-                run(config)
+                if len(sys.argv) > 2:
+                    run(config, subcommand=sys.argv[2])
+                else:
+                    run(config)
 
             if sys.argv[1] == "install":
                 # install calls installers (always application specific, like Karp-S backend or resource repo)
