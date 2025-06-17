@@ -20,3 +20,8 @@ fmt:
 .PHONY: test
 test:
 	pytest
+
+.PHONY: check-types
+check-types:
+	basedpyright
+
