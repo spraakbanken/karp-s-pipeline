@@ -97,11 +97,11 @@ def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[
     csv_files = glob.glob("source/*csv")
     tsv_files = glob.glob("source/*tsv")
     if csv_files or tsv_files:
-        csvfile = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
+        fp = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
         if csv_files:
-            reader = csv.reader(csvfile)
+            reader = csv.reader(fp)
         else:
-            reader = csv.reader(csvfile, dialect="excel-tab")
+            reader = csv.reader(fp, dialect="excel-tab")
         headers: list[str] = next(reader, None) or []
         import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
         # type information for parsing values
@@ -119,7 +119,7 @@ def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[
                     else:
                         raise RuntimeError(f"Uknown type: {field['type']}, given in CSV import")
                 yield entry
-            csvfile.close()
+            fp.close()
 
         entries = get_entries()
     else:
