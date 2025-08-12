@@ -60,6 +60,8 @@ def create_karps_sql(
                     column_type = "INT"
                 elif field.type == "text":
                     column_type = "TEXT"
+                elif field.type == "float":
+                    column_type = "FLOAT"
                 else:
                     raise Exception("unknown column type", field.type)
                 yield f"`{field_name}` {column_type}"
@@ -96,7 +98,7 @@ def create_karps_sql(
                         yield "NULL"
                     elif isinstance(val, str):
                         yield format_str(val)
-                    elif isinstance(val, int):
+                    elif isinstance(val, int) or isinstance(val, float):
                         yield str(val)
                     else:
                         raise Exception("unknown type")

@@ -1,5 +1,5 @@
 from collections.abc import Mapping
-from pydantic import BaseModel, RootModel, field_validator
+from pydantic import BaseModel, Field, RootModel, field_validator
 
 type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
@@ -50,6 +50,8 @@ class PipelineConfig(BaseModel):
     description: MultiLang | None = None
     # the elements of type object will be handled by the exporters models
     export: dict[str, object]
+    # the elements of type object will be handled by the importers models
+    import_settings: Mapping[str, object] = Field(alias="import")
     # main field list, master order and configuration, new fields may be added or aliased to existing fields
     # the entry word field WORD is not in this list and is always the first element, wether used directly or as alias
     fields: list[ConfiguredField]

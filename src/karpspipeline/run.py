@@ -1,6 +1,7 @@
 import csv
 import glob
-from typing import Iterable, Iterator
+from collections.abc import Iterator
+from typing import cast
 
 from karpspipeline import karps
 from karpspipeline.common import ImportException
@@ -16,11 +17,11 @@ from karpspipeline.models import (
 )
 
 
-type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool"}
+type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
 
 
 def run(config: PipelineConfig) -> None:
-    entry_schema, entries = import_resource()
+    entry_schema, entries = import_resource(config)
     field_config = FieldConfig(fields=entry_schema)
     fields = compare_to_current_fields(config, field_config)
     print("Using entry schema: " + json.dumps(entry_schema))
@@ -80,7 +81,7 @@ def validate_entry(fields: EntrySchema, entry: Entry) -> None:
         check(key, fields[key], entry[key])
 
 
-def import_resource() -> tuple[EntrySchema, list[Entry]]:
+def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[Entry]]:
     """
     Checks that the source-files contain entries adhering to resource_config
     Moves the file to output/<resource_id>.jsonl
@@ -95,14 +96,27 @@ def import_resource() -> tuple[EntrySchema, list[Entry]]:
 
     csv_files = glob.glob("source/*csv")
     if csv_files:
-        csvfile = open(csv_files[0], encoding='utf-8-sig')
+        csvfile = open(csv_files[0], encoding="utf-8-sig")
         reader = csv.reader(csvfile)
         headers: list[str] = next(reader, None) or []
+        import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
+        # type information for parsing values
+        cast_fields: list[dict[str, str]] = import_settings["csv"]["cast_fields"]
+
         def get_entries() -> Iterator[Entry]:
             for row in reader:
-                entry = dict(zip(headers,row))
+                entry: dict[str, str | int | float] = dict(zip(headers, row))
+                # parse values
+                for field in cast_fields:
+                    if field["type"] == "int":
+                        entry[field["name"]] = int(entry[field["name"]])
+                    elif field["type"] == "float":
+                        entry[field["name"]] = float(entry[field["name"]])
+                    else:
+                        raise RuntimeError(f"Uknown type: {field['type']}, given in CSV import")
                 yield entry
             csvfile.close()
+
         entries = get_entries()
     else:
         jsonl_files = glob.glob("source/*jsonl")
@@ -113,6 +127,7 @@ def import_resource() -> tuple[EntrySchema, list[Entry]]:
                 entry = json.loads(line)
                 yield entry
             fp.close()
+
         entries = get_entries()
 
     # generate schema from entries
