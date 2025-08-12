@@ -95,9 +95,13 @@ def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[
         print(f"Reading source file: {files[0]}")
 
     csv_files = glob.glob("source/*csv")
-    if csv_files:
-        csvfile = open(csv_files[0], encoding="utf-8-sig")
-        reader = csv.reader(csvfile)
+    tsv_files = glob.glob("source/*tsv")
+    if csv_files or tsv_files:
+        csvfile = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
+        if csv_files:
+            reader = csv.reader(csvfile)
+        else:
+            reader = csv.reader(csvfile, dialect="excel-tab")
         headers: list[str] = next(reader, None) or []
         import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
         # type information for parsing values
