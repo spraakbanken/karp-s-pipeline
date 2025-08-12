@@ -1,6 +1,7 @@
+from collections.abc import Mapping
 from pydantic import BaseModel, RootModel, field_validator
 
-type Entry = dict[str, object]
+type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
 
 

@@ -1,5 +1,6 @@
+import csv
 import glob
-from typing import Iterator
+from typing import Iterable, Iterator
 
 from karpspipeline import karps
 from karpspipeline.common import ImportException
@@ -85,24 +86,38 @@ def import_resource() -> tuple[EntrySchema, list[Entry]]:
     Moves the file to output/<resource_id>.jsonl
     If the file is already there, do nothing
     """
-    files = glob.glob("source/*jsonl")
+    files = glob.glob("source/*")
     if len(files) != 1:
         # we only support one input file
         print(f"pipeline supports {bold('one')} input file in source/")
+    else:
+        print(f"Reading source file: {files[0]}")
 
-    print(f"Reading source file: {files[0]}")
-    with open(files[0]) as fp:
+    csv_files = glob.glob("source/*csv")
+    if csv_files:
+        csvfile = open(csv_files[0], encoding='utf-8-sig')
+        reader = csv.reader(csvfile)
+        headers: list[str] = next(reader, None) or []
+        def get_entries() -> Iterator[Entry]:
+            for row in reader:
+                entry = dict(zip(headers,row))
+                yield entry
+            csvfile.close()
+        entries = get_entries()
+    else:
+        jsonl_files = glob.glob("source/*jsonl")
+        fp = open(jsonl_files[0])
 
-        def get_entries(fp) -> Iterator[Entry]:
+        def get_entries() -> Iterator[Entry]:
             for line in fp:
                 entry = json.loads(line)
                 yield entry
+            fp.close()
+        entries = get_entries()
 
-        entries = get_entries(fp)
-
-        # generate schema from entries
-        fields, res = create_fields(entries)
-        return fields, res
+    # generate schema from entries
+    fields, res = create_fields(entries)
+    return fields, res
 
 
 def compare_to_current_fields(config: PipelineConfig, field_config: FieldConfig) -> list[dict[str, str]]:
