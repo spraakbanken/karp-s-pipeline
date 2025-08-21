@@ -1,6 +1,5 @@
 import csv
 from itertools import chain, tee
-from threading import local
 from typing import Iterable, cast
 
 from karpspipeline.common import create_output_dir
@@ -71,10 +70,8 @@ def export(
 
     karps_config = cast(dict[str, object], config.export["karps"])
     tags = ",".join(cast(dict[str, list[str]], karps_config).get("tags", []))
-    word = karps_config["word"]
-    word_desc_swe, word_desc_eng = _get_multi_lang_values(
-        cast(dict[str, str | dict[str, str]], karps_config).get("word_description")
-    )
+    entry_word = cast(dict[str, str | dict[str, str]], karps_config["entry_word"])
+    word_desc_swe, word_desc_eng = _get_multi_lang_values(entry_word.get("description"))
     resource_data = [
         ["", "", "förslag", "kommentar"],
         ["maskinnamn", config.resource_id, "", ""],
@@ -83,9 +80,9 @@ def export(
         ["beskrivning: svenska", swe_desc, "", ""],
         ["beskrivning: engelska", eng_desc, "", ""],
         ["taggar/samlingar", tags, "", ""],
-        ["word", word, "", ""],
-        ["word beskrivning: svenska", word_desc_swe, "", ""],
-        ["word beskrivning: engelska", word_desc_eng, "", ""],
+        ["entry_word", entry_word["field"], "", ""],
+        ["entry_word beskrivning: svenska", word_desc_swe, "", ""],
+        ["entry_word beskrivning: engelska", word_desc_eng, "", ""],
     ]
 
     with open(output_dir / f"{config.resource_id}_metadata.csv", "w") as csvfile:

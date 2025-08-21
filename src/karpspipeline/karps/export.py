@@ -24,19 +24,17 @@ def create_karps_backend_config(
         "label": pipeline_config.name.model_dump(),
         # TODO sort
         "fields": list(field_config.fields.keys()),
-        "word": karps_config.word,
+        "entry_word": karps_config.entry_word.model_dump(),
         "size": size,
         "link": karps_config.link,
         "updated": int(time.time()),
     }
-    if karps_config.word not in backend_config["fields"]:
-        raise ImportError(f"word: {karps_config.word}, but {karps_config.word} is not available in the resource")
+    if karps_config.entry_word.field not in backend_config["fields"]:
+        raise ImportError(f"entry_word: {karps_config.entry_word.field}, but field is not available in the resource")
     if karps_config.tags:
         backend_config["tags"] = karps_config.tags
     if pipeline_config.description:
         backend_config["description"] = pipeline_config.description.model_dump()
-    if karps_config.word_description:
-        backend_config["word_description"] = karps_config.word_description.model_dump()
 
     with open(f"output/{pipeline_config.resource_id}_karps.yaml", "w") as fp:
         yaml.dump(backend_config, fp)

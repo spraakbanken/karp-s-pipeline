@@ -19,17 +19,19 @@ class FieldMetadata(BaseModel):
     values: dict[str, MultiLang] = {}
 
 
+class EntryWord(BaseModel):
+    # description of the entry word field
+    field: str
+    description: MultiLang
+
+
 class KarpsConfig(BaseModel):
     output_config_dir: str
     db_database: str
     db_user: str
     db_password: str
-    # which field to use as the entry word
-    word: str
-    # description of the entry word field
-    word_description: MultiLang
-    # is the entry word field a collection or not
-    word_collection: bool = False
+    # which field to use as entry_word
+    entry_word: EntryWord
     # tags that this resource belong to
     tags: list[str] = []
     # descrption of tags, probably set this in a parent config.yaml
