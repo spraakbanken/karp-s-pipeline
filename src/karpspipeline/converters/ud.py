@@ -83,7 +83,7 @@ _saldo_pos_to_suc = {
     "knm": "KN",
     "kna": "KN",
     "snm": "SN",
-    # TODO deal with this problem later
+    # TODO deal with this problem later, nl and nlm are translated to lists
     # "nl":"RG", "RO",
     # "nlm":"RG", "RO",
     "al": "DT",

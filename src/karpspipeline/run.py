@@ -15,7 +15,6 @@ from karpspipeline.models import (
     EntrySchema,
     PipelineConfig,
     InferredField,
-    FieldConfig,
 )
 
 
@@ -23,30 +22,29 @@ type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float
 
 
 def run(config: PipelineConfig, subcommand: str = "all") -> None:
-    entry_schema, entries = import_resource(config)
-    field_config = FieldConfig(fields=entry_schema)
-    fields = compare_to_current_fields(config, field_config)
+    # import the resource
+    entry_schema, entries = _import_resource(config)
+    # augument data with for example UD-tags
+    entries = list(_convert_entries(config, entry_schema, iter(entries)))
+    fields = _compare_to_current_fields(config, entry_schema)
     run_all = False
     if subcommand == "all":
         run_all = True
     cmd_found = False
-
-    entries = list(_convert_entries(config, entry_schema, iter(entries)))
-    field_config = FieldConfig(fields=entry_schema)
     print("Using entry schema: " + json.dumps(entry_schema))
 
     if run_all or (subcommand == "karps" and "karps" in config.export):
-        karps.export(config, field_config, entries, fields)
+        karps.export(config, entry_schema, entries, fields)
         cmd_found = True
     if run_all or subcommand == "csvmetadata":
-        csvmetadata.export(config, field_config, entries, fields)
+        csvmetadata.export(config, entry_schema, entries, fields)
         cmd_found = True
 
     if not cmd_found:
         raise ImportException(f"Subcommand '{subcommand}' not available.")
 
 
-def check(key: str, field: InferredField, values: object) -> None:
+def _check(key: str, field: InferredField, values: object) -> None:
     if values is None:
         return
     if bool(field.collection) != isinstance(values, list):
@@ -60,7 +58,7 @@ def check(key: str, field: InferredField, values: object) -> None:
             raise ImportException(f'Mismatch, field: "{key}"')
 
 
-def create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
+def _create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
     schema = {}
     res = []
     for entry in entries:
@@ -68,7 +66,7 @@ def create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
         for key in entry:
             values = entry[key]
             if key in schema:
-                check(key, schema[key], values)
+                _check(key, schema[key], values)
             else:
                 # not previously seen field
                 field = {}
@@ -91,14 +89,7 @@ def create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
     return schema, res
 
 
-def validate_entry(fields: EntrySchema, entry: Entry) -> None:
-    for key in entry:
-        if key not in fields:
-            raise ImportException(f'entry contains field: "{key}" that is not in config: "{json.dumps(entry)}"')
-        check(key, fields[key], entry[key])
-
-
-def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[Entry]]:
+def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[Entry]]:
     """
     Checks that the source-files contain entries adhering to resource_config
     Moves the file to output/<resource_id>.jsonl
@@ -152,11 +143,11 @@ def import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[
         entries = get_entries()
 
     # generate schema from entries
-    fields, res = create_fields(entries)
+    fields, res = _create_fields(entries)
     return fields, res
 
 
-def compare_to_current_fields(config: PipelineConfig, field_config: FieldConfig) -> list[dict[str, str]]:
+def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema) -> list[dict[str, str]]:
     """
     Looks in the main config file for presets about this field, mainly label but could also be tagset
     """
@@ -166,7 +157,7 @@ def compare_to_current_fields(config: PipelineConfig, field_config: FieldConfig)
 
     main_fields: dict[str, ConfiguredField] = to_dict(config.fields)
     new_fields = []
-    for key, field in field_config.fields.items():
+    for key, field in entry_schema.items():
         field: InferredField
         if key in main_fields:
             main_field = main_fields[key]
@@ -184,10 +175,15 @@ def compare_to_current_fields(config: PipelineConfig, field_config: FieldConfig)
 
 
 def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries: Iterator[Entry]) -> Iterator[Entry]:
+    """
+    Check if config contains any renames or conversions
+    Update the entry schema and each entry with this information
+    """
+
     def _convert_value(converter: str | None, val: Any) -> Any:
         if converter:
             [module, func] = converter.split(".")
-            mod = importlib.import_module("karpspipeline." + module)
+            mod = importlib.import_module("karpspipeline.converters." + module)
             func_obj = getattr(mod, func)
             return func_obj(val)
         return val
@@ -195,6 +191,7 @@ def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries:
     add_all = False
     converted_fields = []
     if len(config.export.fields) == 0:
+        # add all the fields from the source to the target if there are no field settings
         add_all = True
     for field in config.export.fields:
         if field.root == "...":

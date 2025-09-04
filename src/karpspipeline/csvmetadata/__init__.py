@@ -3,7 +3,7 @@ from itertools import chain, tee
 from typing import Iterable, cast
 
 from karpspipeline.common import create_output_dir
-from karpspipeline.models import Entry, PipelineConfig, FieldConfig
+from karpspipeline.models import Entry, EntrySchema, PipelineConfig
 
 __all__ = ["export"]
 
@@ -26,7 +26,7 @@ def _get_multi_lang_values(
 
 
 def export(
-    config: PipelineConfig, resource_config: FieldConfig, entries: Iterable[Entry], fields: list[dict[str, str]]
+    config: PipelineConfig, resource_config: EntrySchema, entries: Iterable[Entry], fields: list[dict[str, str]]
 ):
     output_dir = create_output_dir()
 

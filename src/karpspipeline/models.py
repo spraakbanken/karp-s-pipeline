@@ -14,11 +14,6 @@ class InferredField(BaseModel):
     collection: bool = False
 
 
-# TODO Does not need validation, transform to data class
-class FieldConfig(BaseModel):
-    fields: EntrySchema
-
-
 class MultiLang(RootModel[str | dict[str, str]]):
     """
     Model that represents labels that can be be either just the same for all languages:

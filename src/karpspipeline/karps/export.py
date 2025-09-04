@@ -4,14 +4,14 @@ from typing import Iterable, Iterator
 
 from karpspipeline.common import create_output_dir
 from karpspipeline.karps.models import KarpsConfig
-from karpspipeline.models import Entry, EntrySchema, FieldConfig, PipelineConfig, InferredField
+from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 from karpspipeline.util import yaml
 
 
 def create_karps_backend_config(
     pipeline_config: PipelineConfig,
     karps_config: KarpsConfig,
-    field_config: FieldConfig,
+    entry_schema: EntrySchema,
     size: int,
     fields: list[dict[str, str]],
 ):
@@ -23,7 +23,7 @@ def create_karps_backend_config(
         "resource_id": pipeline_config.resource_id,
         "label": pipeline_config.name.model_dump(),
         # TODO sort
-        "fields": list(field_config.fields.keys()),
+        "fields": list(entry_schema.keys()),
         "entry_word": karps_config.entry_word.model_dump(),
         "size": size,
         "link": karps_config.link,
@@ -42,7 +42,7 @@ def create_karps_backend_config(
 
 def create_karps_sql(
     pipeline_config: PipelineConfig,
-    resource_config: FieldConfig,
+    resource_config: EntrySchema,
     entries: Iterable[Entry],
 ) -> int:
     def schema(table_name: str, structure: EntrySchema) -> str:
@@ -155,7 +155,7 @@ def create_karps_sql(
 
     size = 0
     with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:
-        schema_sql = schema(pipeline_config.resource_id, resource_config.fields)
+        schema_sql = schema(pipeline_config.resource_id, resource_config)
         fp.write(schema_sql)
         for line in entries_sql():
             fp.write(line)
