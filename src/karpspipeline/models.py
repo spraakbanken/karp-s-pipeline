@@ -39,24 +39,34 @@ class ConfiguredField(BaseModel):
     label: MultiLang
 
 
-PATTERN = re.compile(
+CONVERTER_PATTERN = re.compile(
     r"^(?P<name>\w+)"
     r"(?:\:(?P<converter>\w+(?:\.\w+)*))?"
     r"(?:\s+as\s+(?P<target>\w+))?$"
 )
 
+NOT_PATTERN = re.compile(r"^not\s(?P<name>\w+)")
+
 
 class ExportFieldConfig(RootModel[str]):
     @field_validator("root")
     def validate_field_config(cls, value):
-        if value == "..." or re.fullmatch(PATTERN, value):
+        if value == "..." or re.fullmatch(CONVERTER_PATTERN, value) or re.fullmatch(NOT_PATTERN, value):
             return value
         raise ValueError(f"wrongly formatted field str: {value}")
 
     @computed_field
     @property
+    def exclude(self) -> bool:
+        return bool(NOT_PATTERN.fullmatch(self.root))
+
+    @computed_field
+    @property
     def name(self) -> str:
-        m = PATTERN.fullmatch(self.root)
+        m = CONVERTER_PATTERN.fullmatch(self.root)
+        if m:
+            return m.group("name")
+        m = NOT_PATTERN.fullmatch(self.root)
         if m:
             return m.group("name")
         raise ValueError("missing field name")
@@ -64,13 +74,13 @@ class ExportFieldConfig(RootModel[str]):
     @computed_field
     @property
     def converter(self) -> str | None:
-        m = PATTERN.fullmatch(self.root)
+        m = CONVERTER_PATTERN.fullmatch(self.root)
         return m.group("converter") if m else None
 
     @computed_field
     @property
     def target(self) -> str:
-        m = PATTERN.fullmatch(self.root)
+        m = CONVERTER_PATTERN.fullmatch(self.root)
         return m.group("target") if m else self.name
 
 

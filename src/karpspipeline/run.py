@@ -200,7 +200,10 @@ def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries:
             converted_fields.append(field)
 
     for field in converted_fields:
-        entry_schema[field.target] = entry_schema[field.name]
+        if field.exclude:
+            entry_schema.pop(field.target, None)
+        else:
+            entry_schema[field.target] = entry_schema[field.name]
 
     for entry in entries:
         if add_all:
@@ -208,7 +211,10 @@ def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries:
         else:
             new_entry = {}
         for field in converted_fields:
-            val = entry[field.name]
-            new_entry[field.target] = _convert_value(field.converter, val)
+            if field.exclude:
+                new_entry.pop(field.name, None)
+            else:
+                val = entry[field.name]
+                new_entry[field.target] = _convert_value(field.converter, val)
 
         yield new_entry
