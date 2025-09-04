@@ -1,5 +1,8 @@
+from collections import UserDict
 from collections.abc import Mapping
-from pydantic import BaseModel, Field, RootModel, field_validator
+import re
+from typing import Any
+from pydantic import BaseModel, Field, RootModel, field_validator, computed_field
 
 type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
@@ -41,6 +44,54 @@ class ConfiguredField(BaseModel):
     label: MultiLang
 
 
+PATTERN = re.compile(
+    r"^(?P<name>\w+)"
+    r"(?:\:(?P<converter>\w+(?:\.\w+)*))?"
+    r"(?:\s+as\s+(?P<target>\w+))?$"
+)
+
+
+class ExportFieldConfig(RootModel[str]):
+    @field_validator("root")
+    def validate_field_config(cls, value):
+        if value == "..." or re.fullmatch(PATTERN, value):
+            return value
+        raise ValueError(f"wrongly formatted field str: {value}")
+
+    @computed_field
+    @property
+    def name(self) -> str:
+        m = PATTERN.fullmatch(self.root)
+        if m:
+            return m.group("name")
+        raise ValueError("missing field name")
+
+    @computed_field
+    @property
+    def converter(self) -> str | None:
+        m = PATTERN.fullmatch(self.root)
+        return m.group("converter") if m else None
+
+    @computed_field
+    @property
+    def target(self) -> str:
+        m = PATTERN.fullmatch(self.root)
+        return m.group("target") if m else self.name
+
+
+class ExportConfig(RootModel[dict[str, Any]], UserDict):
+    @computed_field
+    @property
+    def fields(self) -> list[ExportFieldConfig]:
+        return [ExportFieldConfig(field) for field in self.root.get("fields", [])]
+
+    def __getitem__(self, *args, **kwargs):
+        return self.root.__getitem__(*args, **kwargs)
+
+    def __contains__(self, *args, **kwargs):
+        return self.root.__contains__(*args, **kwargs)
+
+
 class PipelineConfig(BaseModel):
     class Config:
         extra = "forbid"
@@ -49,7 +100,7 @@ class PipelineConfig(BaseModel):
     name: MultiLang
     description: MultiLang | None = None
     # the elements of type object will be handled by the exporters models
-    export: dict[str, object]
+    export: ExportConfig
     # the elements of type object will be handled by the importers models
     import_settings: Mapping[str, object] = Field(alias="import", default={})
     # main field list, master order and configuration, new fields may be added or aliased to existing fields

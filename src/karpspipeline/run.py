@@ -1,7 +1,8 @@
 import csv
 import glob
 from collections.abc import Iterator
-from typing import cast
+import importlib
+from typing import Any, cast
 
 from karpspipeline import karps
 from karpspipeline import csvmetadata
@@ -25,11 +26,15 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
     entry_schema, entries = import_resource(config)
     field_config = FieldConfig(fields=entry_schema)
     fields = compare_to_current_fields(config, field_config)
-    print("Using entry schema: " + json.dumps(entry_schema))
     run_all = False
     if subcommand == "all":
         run_all = True
     cmd_found = False
+
+    entries = list(_convert_entries(config, entry_schema, iter(entries)))
+    field_config = FieldConfig(fields=entry_schema)
+    print("Using entry schema: " + json.dumps(entry_schema))
+
     if run_all or (subcommand == "karps" and "karps" in config.export):
         karps.export(config, field_config, entries, fields)
         cmd_found = True
@@ -176,3 +181,37 @@ def compare_to_current_fields(config: PipelineConfig, field_config: FieldConfig)
             new_field["name"] = key
             new_fields.append(new_field)
     return new_fields
+
+
+def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries: Iterator[Entry]) -> Iterator[Entry]:
+    def _convert_value(converter: str | None, val: Any) -> Any:
+        if converter:
+            [module, func] = converter.split(".")
+            mod = importlib.import_module("karpspipeline." + module)
+            func_obj = getattr(mod, func)
+            return func_obj(val)
+        return val
+
+    add_all = False
+    converted_fields = []
+    if len(config.export.fields) == 0:
+        add_all = True
+    for field in config.export.fields:
+        if field.root == "...":
+            add_all = True
+        else:
+            converted_fields.append(field)
+
+    for field in converted_fields:
+        entry_schema[field.target] = entry_schema[field.name]
+
+    for entry in entries:
+        if add_all:
+            new_entry = dict(entry)
+        else:
+            new_entry = {}
+        for field in converted_fields:
+            val = entry[field.name]
+            new_entry[field.target] = _convert_value(field.converter, val)
+
+        yield new_entry
