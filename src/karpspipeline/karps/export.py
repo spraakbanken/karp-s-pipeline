@@ -12,6 +12,7 @@ def create_karps_backend_config(
     pipeline_config: PipelineConfig,
     karps_config: KarpsConfig,
     entry_schema: EntrySchema,
+    source_order: list[str],
     size: int,
     fields: list[dict[str, str]],
 ):
@@ -19,11 +20,23 @@ def create_karps_backend_config(
     with open(create_output_dir() / "fields.yaml", "w") as fp:
         yaml.dump(fields, fp)
 
+    def order_fields(fields: Iterator[str]):
+        # initialize main sort order
+        order_map = {name: i for i, name in enumerate([field.name for field in pipeline_config.fields])}
+
+        # order by apperance in input objects for non-configured fields
+        for i, name in enumerate(source_order):
+            if name not in order_map:
+                order_map[name] = len(pipeline_config.fields) + i
+
+        # should be no unknown fields at this point
+        sorted_keys = sorted(fields, key=lambda x: order_map[x])
+        return sorted_keys
+
     backend_config = {
         "resource_id": pipeline_config.resource_id,
         "label": pipeline_config.name.model_dump(),
-        # TODO sort
-        "fields": list(entry_schema.keys()),
+        "fields": order_fields(iter(entry_schema.keys())),
         "entry_word": karps_config.entry_word.model_dump(),
         "size": size,
         "link": karps_config.link,

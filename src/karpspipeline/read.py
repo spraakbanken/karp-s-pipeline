@@ -1,12 +1,48 @@
 import csv
 import glob
 import json
-from typing import Iterator, cast
+from typing import Iterator, OrderedDict, cast
 
 from karpspipeline.models import Entry, PipelineConfig
 
 
-def read_data(pipeline_config: PipelineConfig):
+def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> list[str]:
+    """
+    Tries to merge two lists so that the order of original list is preserved, while new
+    elements are added in between in appropriate places. If the order is conflicting
+    we don't really care what happens, order should be hard coded in cofig for those cases.
+    """
+    source_place = 0
+    for i, key in enumerate(new_keys):
+        if key in source_order:
+            source_place = source_order.index(key)
+            continue
+
+        # find anchor - find the next elment in keys that are already in
+        source_order_from_current = source_order[source_place:]
+        inserted = False
+        for future_key in new_keys[i:]:
+            if future_key in source_order_from_current:
+                # but get the index  from source_order
+                anchor_idx = source_order.index(future_key)
+                # splice in the new element immediately before anchor
+                source_order.insert(anchor_idx, key)
+                source_place = anchor_idx
+                inserted = True
+                break
+
+        if not inserted:
+            # anchor not found - add
+            source_order.append(key)
+    return source_order
+
+
+def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], Iterator[Entry]]:
+    """
+    When reading CSV data, we know the fields and their order beforehand, but not for JSON
+    (unless hard coded in configuration). We prepare sort order here, but it is not usable
+    until after the generators have been consumed.
+    """
     csv_files = glob.glob("source/*csv")
     tsv_files = glob.glob("source/*tsv")
     if csv_files or tsv_files:
@@ -15,14 +51,14 @@ def read_data(pipeline_config: PipelineConfig):
             reader = csv.reader(fp)
         else:
             reader = csv.reader(fp, dialect="excel-tab")
-        headers: list[str] = next(reader, None) or []
+        source_order = next(reader, None) or []
         import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
         # type information for parsing values
         cast_fields: list[dict[str, str]] = import_settings["csv"]["cast_fields"]
 
         def get_entries() -> Iterator[Entry]:
             for row in reader:
-                entry: dict[str, str | int | float] = dict(zip(headers, row))
+                entry: dict[str, str | int | float] = dict(zip(source_order, row))
                 # parse values
                 for field in cast_fields:
                     if field["type"] == "int":
@@ -34,15 +70,22 @@ def read_data(pipeline_config: PipelineConfig):
                 yield entry
             fp.close()
 
-        return get_entries()
+        return source_order, get_entries()
     else:
         jsonl_files = glob.glob("source/*jsonl")
         fp = open(jsonl_files[0])
 
+        source_order = []
+
         def get_entries() -> Iterator[Entry]:
             for line in fp:
-                entry = json.loads(line)
+                entry = json.loads(line, object_pairs_hook=OrderedDict)
+
+                # get the sort order from the input JSON
+                # this could be configurable to speed up
+                keys = list(entry.keys())
+                _update_json_source_order(source_order, keys)
                 yield entry
             fp.close()
 
-        return get_entries()
+        return source_order, get_entries()

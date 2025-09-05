@@ -23,7 +23,7 @@ type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float
 
 def run(config: PipelineConfig, subcommand: str = "all") -> None:
     # import the resource
-    entry_schema, entries = _import_resource(config)
+    entry_schema, source_order, entries = _import_resource(config)
     # augument data with for example UD-tags
     entries = list(_convert_entries(config, entry_schema, iter(entries)))
     fields = _compare_to_current_fields(config, entry_schema)
@@ -34,10 +34,10 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
     print("Using entry schema: " + json.dumps(entry_schema))
 
     if run_all or (subcommand == "karps" and "karps" in config.export):
-        karps.export(config, entry_schema, entries, fields)
+        karps.export(config, entry_schema, source_order, entries, fields)
         cmd_found = True
     if run_all or subcommand == "csvmetadata":
-        csvmetadata.export(config, entry_schema, entries, fields)
+        csvmetadata.export(config, entries, fields)
         cmd_found = True
 
     if not cmd_found:
@@ -89,7 +89,7 @@ def _create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
     return schema, res
 
 
-def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[Entry]]:
+def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[str], list[Entry]]:
     """
     Checks that the source-files contain entries adhering to resource_config
     Moves the file to output/<resource_id>.jsonl
@@ -102,11 +102,11 @@ def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list
     else:
         print(f"Reading source file: {files[0]}")
 
-    entries = read_data(pipeline_config)
+    source_order, entries = read_data(pipeline_config)
 
     # generate schema from entries
     fields, res = _create_fields(entries)
-    return fields, res
+    return fields, source_order, res
 
 
 def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema) -> list[dict[str, str]]:

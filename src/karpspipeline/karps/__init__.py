@@ -13,12 +13,18 @@ def _get_karps_config(config):
     return KarpsConfig.model_validate(config.export["karps"])
 
 
-def export(config: PipelineConfig, entry_schema: EntrySchema, entries: Iterable[Entry], fields: list[dict[str, str]]):
+def export(
+    config: PipelineConfig,
+    entry_schema: EntrySchema,
+    source_order: list[str],
+    entries: Iterable[Entry],
+    fields: list[dict[str, str]],
+):
     create_output_dir()
     karps_config = _get_karps_config(config)
 
     size = backend_export.create_karps_sql(config, entry_schema, entries)
-    backend_export.create_karps_backend_config(config, karps_config, entry_schema, size, fields)
+    backend_export.create_karps_backend_config(config, karps_config, entry_schema, source_order, size, fields)
 
 
 def install(pipeline_config: PipelineConfig):
