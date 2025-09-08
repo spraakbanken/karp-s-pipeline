@@ -23,7 +23,7 @@ def export(
     create_output_dir()
     karps_config = _get_karps_config(config)
 
-    size = backend_export.create_karps_sql(config, entry_schema, entries)
+    size = backend_export.create_karps_sql(config, karps_config, entry_schema, entries)
     backend_export.create_karps_backend_config(config, karps_config, entry_schema, source_order, size, fields)
 
 

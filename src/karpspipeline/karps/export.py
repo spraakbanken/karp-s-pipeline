@@ -55,6 +55,7 @@ def create_karps_backend_config(
 
 def create_karps_sql(
     pipeline_config: PipelineConfig,
+    karps_config: KarpsConfig,
     resource_config: EntrySchema,
     entries: Iterable[Entry],
 ) -> int:
@@ -71,7 +72,7 @@ def create_karps_sql(
             return f"""
             SELECT CONCAT('DROP TABLE IF EXISTS `', GROUP_CONCAT(TABLE_NAME SEPARATOR '`, `'), '`;')
             INTO @drop_stmt FROM information_schema.TABLES 
-            WHERE TABLE_SCHEMA = 'karps_local' AND TABLE_NAME LIKE '{table_name}__%';
+            WHERE TABLE_SCHEMA = '{karps_config.db_database}' AND TABLE_NAME LIKE '{table_name}__%';
             SET @run_stmt = IF(@drop_stmt IS NOT NULL, @drop_stmt, 'SELECT "No tables to drop";');
             PREPARE stmt FROM @run_stmt;
             EXECUTE stmt;
