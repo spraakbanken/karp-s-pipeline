@@ -1,12 +1,12 @@
-import csv
 import glob
 from collections.abc import Iterator
 import importlib
-from typing import Any, cast
+from typing import Any
 
 from karpspipeline import karps
 from karpspipeline import csvmetadata
 from karpspipeline.common import ImportException
+from karpspipeline.read import read_data
 from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
 from karpspipeline.models import (
@@ -102,45 +102,7 @@ def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list
     else:
         print(f"Reading source file: {files[0]}")
 
-    csv_files = glob.glob("source/*csv")
-    tsv_files = glob.glob("source/*tsv")
-    if csv_files or tsv_files:
-        fp = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
-        if csv_files:
-            reader = csv.reader(fp)
-        else:
-            reader = csv.reader(fp, dialect="excel-tab")
-        headers: list[str] = next(reader, None) or []
-        import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
-        # type information for parsing values
-        cast_fields: list[dict[str, str]] = import_settings["csv"]["cast_fields"]
-
-        def get_entries() -> Iterator[Entry]:
-            for row in reader:
-                entry: dict[str, str | int | float] = dict(zip(headers, row))
-                # parse values
-                for field in cast_fields:
-                    if field["type"] == "int":
-                        entry[field["name"]] = int(entry[field["name"]])
-                    elif field["type"] == "float":
-                        entry[field["name"]] = float(entry[field["name"]])
-                    else:
-                        raise RuntimeError(f"Uknown type: {field['type']}, given in CSV import")
-                yield entry
-            fp.close()
-
-        entries = get_entries()
-    else:
-        jsonl_files = glob.glob("source/*jsonl")
-        fp = open(jsonl_files[0])
-
-        def get_entries() -> Iterator[Entry]:
-            for line in fp:
-                entry = json.loads(line)
-                yield entry
-            fp.close()
-
-        entries = get_entries()
+    entries = read_data(pipeline_config)
 
     # generate schema from entries
     fields, res = _create_fields(entries)
