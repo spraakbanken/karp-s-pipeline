@@ -44,9 +44,9 @@ def suc_to_ud(pos: str) -> str:
         "SN": "SCONJ",
         "PP": "ADP",
         "RG": "NUM",
-        "RO": "ADJ",  # No NUM?
+        "RO": "ADJ",  # ordinal numerals are adjectives
         "IN": "INTJ",
-        "UO": "X",  # Could be any PoS, most probably a noun /ljo
+        "UO": "X",
         "MAD": "PUNCT",
         "MID": "PUNCT",
         "PAD": "PUNCT",
@@ -83,9 +83,9 @@ _saldo_pos_to_suc = {
     "knm": "KN",
     "kna": "KN",
     "snm": "SN",
-    # TODO deal with this problem later, nl and nlm are translated to lists
-    # "nl":"RG", "RO",
-    # "nlm":"RG", "RO",
+    # nl and nlm in Saldo is numeral and since we do not now if it is ordinal (SUC:RO), use SUC:RG (cardinal)
+    "nl": "RG",  # not RO
+    "nlm": "RG",  # not RO
     "al": "DT",
     "pma": "PM",
 }
