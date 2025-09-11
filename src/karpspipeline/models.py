@@ -40,7 +40,7 @@ class ConfiguredField(BaseModel):
 
 
 CONVERTER_PATTERN = re.compile(
-    r"^(?P<name>\w+)"
+    r"^(?P<name>[^:]+)"
     r"(?:\:(?P<converter>\w+(?:\.\w+)*))?"
     r"(?:\s+as\s+(?P<target>\w+))?$"
 )

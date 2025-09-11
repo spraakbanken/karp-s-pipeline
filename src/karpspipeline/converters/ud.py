@@ -54,6 +54,13 @@ def suc_to_ud(pos: str) -> str:
     return pos_dict.get(pos.upper(), UD_FALLBACK)
 
 
+def isof_to_ud(pos: str) -> str:
+    """
+    Convert isofs internal markup for POS into ud (experimental)
+    """
+    return _isof_nyord_to_ud.get(pos, UD_FALLBACK)
+
+
 _saldo_pos_to_suc = {
     "nn": "NN",
     "av": "JJ",
@@ -88,4 +95,51 @@ _saldo_pos_to_suc = {
     "nlm": "RG",  # not RO
     "al": "DT",
     "pma": "PM",
+}
+
+_isof_nyord_to_ud = {
+    # combined words (klimatbanta, klimatbantare) get X - unkown
+    "substantiv": "NOUN",
+    "substantiv, förkortning": "NOUN",
+    "substantiv, namn/eponym, teleskopord": "NOUN",
+    "substantiv, teleskopord": "NOUN",
+    "substantiv, räkneord": "NOUN",
+    "substantiv, fras/uttryck": "NOUN",
+    "substantiv, namn/eponym": "NOUN",
+    "namn/eponym, substantiv": "NOUN",
+    # några av dessa passar nog bättre som PROPN (proper noun)
+    "förkortning": "NOUN",
+    "adjektiv": "ADJ",
+    "adjektiv, teleskopord": "ADJ",
+    # one of the words with this value cannot be PART, but both can be ADJ
+    "adjektiv, förled/efterled": "ADJ",
+    "fras/uttryck, adjektiv": "ADJ",
+    "namn/eponym, adjektiv": "ADJ",
+    "verb": "VERB",
+    "verb, förkortning": "VERB",
+    "verb, namn/eponym": "VERB",
+    "verb, teleskopord": "VERB",
+    "namn/eponym, verb": "VERB",
+    "fras/uttryck, interjektion": "INTJ",
+    "fras/uttryck, substantiv": "X",
+    "substantiv, förled/efterled": "PART",
+    "förled/efterled": "PART",
+    "förled/efterled, substantiv": "PART",
+    "pronomen": "PRON",
+    "räkneord": "NUM",
+    # usually multi-word expressions
+    "fras/uttryck": "X",
+    "fras/uttryck, substantiv, adjektiv": "X",
+    "substantiv, verb": "X",
+    "substantiv, verb, adjektiv": "X",
+    "substantiv, verb, fras/uttryck": "X",
+    "substantiv, adjektiv": "X",
+    "adjektiv, substantiv": "X",
+    "adjektiv, substantiv, förled/efterled": "X",
+    "adjektiv, verb, substantiv": "X",
+    "verb, adjektiv": "X",
+    "verb, adjektiv, substantiv": "X",
+    "verb, substantiv": "X",
+    "verb, substantiv, adjektiv": "X",
+    "övrigt": "X",
 }
