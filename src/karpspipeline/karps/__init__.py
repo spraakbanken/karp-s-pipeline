@@ -1,4 +1,4 @@
-from typing import Iterable
+from typing import Callable
 
 from karpspipeline.common import create_output_dir
 import karpspipeline.karps.install as backend_install
@@ -17,14 +17,23 @@ def export(
     config: PipelineConfig,
     entry_schema: EntrySchema,
     source_order: list[str],
-    entries: Iterable[Entry],
+    size: int,
     fields: list[dict[str, str]],
-):
+) -> list[Callable[[Entry], Entry]]:
     create_output_dir()
     karps_config = _get_karps_config(config)
 
-    size = backend_export.create_karps_sql(config, karps_config, entry_schema, entries)
+    # sql_gen is a coroutine for creating the SQL file for backend
+    sql_gen = backend_export.create_karps_sql(config, karps_config, entry_schema)
     backend_export.create_karps_backend_config(config, karps_config, entry_schema, source_order, size, fields)
+
+    next(sql_gen)
+
+    def task(entry: Entry) -> Entry:
+        sql_gen.send(entry)
+        return entry
+
+    return [task]
 
 
 def install(pipeline_config: PipelineConfig):

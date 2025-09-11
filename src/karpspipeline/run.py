@@ -1,10 +1,11 @@
 import glob
 from collections.abc import Iterator
 import importlib
-from typing import Any
+from typing import Any, Callable
 
 from karpspipeline import karps
-from karpspipeline.common import ImportException
+
+from karpspipeline.common import ImportException, get_output_dir
 from karpspipeline.read import read_data
 from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
@@ -21,20 +22,61 @@ type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float
 
 
 def run(config: PipelineConfig, subcommand: str = "all") -> None:
-    # import the resource
-    entry_schema, source_order, entries = _import_resource(config)
-    # augument data with for example UD-tags
-    entries = list(_convert_entries(config, entry_schema, iter(entries)))
+    # pre-import tasks, invoke conversions to know which fields *will* be there
+    # TODO collect number of items
+    entry_schema, source_order, [size] = _pre_import_resource(config)
     fields = _compare_to_current_fields(config, entry_schema)
+
+    # generator for entries
+    entries = _import_resource(config, entry_schema, source_order)
+
+    # callables added to tasks will be called for each entry
+    tasks: list[Callable[[Entry], Entry]] = []
+
+    # modifies entry_schema based on config and returns modification task for entries
+    entry_converter = get_entry_converter(config, entry_schema)
+    # add task to include, exclude, rename or update fields in enries (based on export.fields)
+    tasks.append(entry_converter)
+
+    print("Using entry schema: " + json.dumps(entry_schema))
+
     run_all = False
     if subcommand == "all":
         run_all = True
     cmd_found = False
-    print("Using entry schema: " + json.dumps(entry_schema))
 
     if run_all or (subcommand == "karps" and "karps" in config.export):
-        karps.export(config, entry_schema, source_order, entries, fields)
+        # create karps backend config
+        new_tasks = karps.export(config, entry_schema, source_order, size, fields)
+        # add task for generating karp-s backend SQL
+        tasks.extend(new_tasks)
         cmd_found = True
+
+    if run_all or subcommand == "dump":
+
+        def json_dump():
+            with open(get_output_dir() / f"{config.resource_id}.jsonl", "w") as fp:
+                while True:
+                    entry = yield
+                    if not entry:
+                        break
+                    fp.write(json.dumps(entry) + "\n")
+
+        gen = json_dump()
+        next(gen)
+
+        def task(entry: Entry, /) -> Entry:
+            gen.send(entry)
+            return entry
+
+        # add task for dumping data as jsonl (with all modifications)
+        tasks.append(task)
+
+    # for each entry, do the needed tasks
+    for entry in entries:
+        updated_entry = entry
+        for task in tasks:
+            updated_entry = task(updated_entry)
 
     if not cmd_found:
         raise ImportException(f"Subcommand '{subcommand}' not available.")
@@ -54,7 +96,7 @@ def _check(key: str, field: InferredField, values: object) -> None:
             raise ImportException(f'Mismatch, field: "{key}"')
 
 
-def _create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
+def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
     schema = {}
     res = []
     for entry in entries:
@@ -81,11 +123,10 @@ def _create_fields(entries: Iterator[Entry]) -> tuple[EntrySchema, list[Entry]]:
                 field["type"] = type_lookup[typ]
                 print(f"Adding {key} = {json.dumps(field)}")
                 schema[key] = InferredField.model_validate(field)
+    return schema
 
-    return schema, res
 
-
-def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[str], list[Entry]]:
+def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[str], list[int]]:
     """
     Checks that the source-files contain entries adhering to resource_config
     Moves the file to output/<resource_id>.jsonl
@@ -98,16 +139,23 @@ def _import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list
     else:
         print(f"Reading source file: {files[0]}")
 
-    source_order, entries = read_data(pipeline_config)
+    source_order, size, entries = read_data(pipeline_config)
 
-    # generate schema from entries
-    fields, res = _create_fields(entries)
-    return fields, source_order, res
+    # generate schema from entries - _create_field will exaust the generator and make size updated
+    fields = _create_fields(entries)
+    return (fields, source_order, size)
+
+
+def _import_resource(
+    pipeline_config: PipelineConfig, entry_schema: EntrySchema, source_order: list[str]
+) -> Iterator[Entry]:
+    _, _, entries = read_data(pipeline_config)
+    return entries
 
 
 def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema) -> list[dict[str, str]]:
     """
-    Looks in the main config file for presets about this field, mainly label but could also be tagset
+    Looks in the main config file for presets about the fields, mainly label but could also be tagset
     """
 
     def to_dict(elems: list[ConfiguredField]) -> dict[str, ConfiguredField]:
@@ -132,22 +180,21 @@ def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema
     return new_fields
 
 
-def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries: Iterator[Entry]) -> Iterator[Entry]:
+def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Callable[[Entry], Entry]:
     """
     Check if config contains any renames or conversions
     Update the entry schema and each entry with this information
     """
 
-    def _convert_value(converter: str | None, val: Any) -> Any:
-        if converter:
-            [module, func] = converter.split(".")
-            mod = importlib.import_module("karpspipeline.converters." + module)
-            func_obj = getattr(mod, func)
-            return func_obj(val)
-        return val
+    def _get_converter(converter: str) -> Callable[[object], object]:
+        [module, func] = converter.split(".")
+        mod = importlib.import_module("karpspipeline.converters." + module)
+        func_obj = getattr(mod, func)
+        return func_obj
 
     add_all = False
     converted_fields = []
+    converters = {}
     if len(config.export.fields) == 0:
         # add all the fields from the source to the target if there are no field settings
         add_all = True
@@ -156,23 +203,33 @@ def _convert_entries(config: PipelineConfig, entry_schema: EntrySchema, entries:
             add_all = True
         else:
             converted_fields.append(field)
-
+    if not add_all:
+        entry_schema.clear()
     for field in converted_fields:
         if field.exclude:
             entry_schema.pop(field.target, None)
         else:
             entry_schema[field.target] = entry_schema[field.name]
+        # pre-import each converter
+        if field.converter:
+            converters[field.converter] = _get_converter(field.converter)
 
-    for entry in entries:
-        if add_all:
-            new_entry = dict(entry)
-        else:
-            new_entry = {}
+    def _convert_value(converter: str | None, val: Any) -> Any:
+        if converter:
+            return converters[converter](val)
+        return val
+
+    def convert(entry: Entry) -> Entry:
+        new_entry = {}
+        for key in entry_schema.keys():
+            if key in entry:
+                new_entry[key] = entry[key]
+
         for field in converted_fields:
-            if field.exclude:
-                new_entry.pop(field.name, None)
-            else:
+            if not field.exclude:
                 val = entry[field.name]
                 new_entry[field.target] = _convert_value(field.converter, val)
 
-        yield new_entry
+        return new_entry
+
+    return convert

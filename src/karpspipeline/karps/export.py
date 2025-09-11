@@ -1,5 +1,5 @@
 import time
-from typing import Iterable, Iterator
+from typing import Generator, Iterator
 
 
 from karpspipeline.common import create_output_dir
@@ -54,11 +54,8 @@ def create_karps_backend_config(
 
 
 def create_karps_sql(
-    pipeline_config: PipelineConfig,
-    karps_config: KarpsConfig,
-    resource_config: EntrySchema,
-    entries: Iterable[Entry],
-) -> int:
+    pipeline_config: PipelineConfig, karps_config: KarpsConfig, resource_config: EntrySchema
+) -> Generator[None, Entry | None, None]:
     def schema(table_name: str, structure: EntrySchema) -> str:
         """
         Find schema automatically by going through all elements
@@ -122,8 +119,13 @@ def create_karps_sql(
         COLLATE utf8mb4_swedish_ci;
         """ + "".join(tables)
 
-    def entries_sql() -> Iterator[str]:
-        for idx, entry in enumerate(entries):
+    def entries_sql() -> Generator[list[str], Entry | None, None]:
+        idx = 0
+        lines = []
+        while True:
+            entry = yield lines
+            if entry is None:
+                break
 
             def format_str(val):
                 """
@@ -162,16 +164,22 @@ def create_karps_sql(
 
             inserts, columns, values = sqlify_values(entry)
 
-            # first emit the main entry
-            yield f"INSERT INTO `{pipeline_config.resource_id}` (`__id`, {', '.join(f'`{column}`' for column in columns)}) VALUES ({idx}, {', '.join(values)});\n"
-            # then emit rows depending on main entry
-            yield from inserts
+            # main entry
+            lines = [
+                f"INSERT INTO `{pipeline_config.resource_id}` (`__id`, {', '.join(f'`{column}`' for column in columns)}) VALUES ({idx}, {', '.join(values)});\n"
+            ] + inserts
+            idx += 1
 
-    size = 0
+    sql_gen = entries_sql()
+    next(sql_gen)
     with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:
         schema_sql = schema(pipeline_config.resource_id, resource_config)
         fp.write(schema_sql)
-        for line in entries_sql():
-            fp.write(line)
-            size += 1
-    return size
+        while True:
+            entry = yield
+            if not entry:
+                # TODO it this needed or can sql_gen be killed/gc:ed when the outer generator is done
+                sql_gen.send(None)
+                break
+            for line in sql_gen.send(entry):
+                fp.write(line)

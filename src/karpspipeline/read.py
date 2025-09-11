@@ -37,7 +37,7 @@ def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> l
     return source_order
 
 
-def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], Iterator[Entry]]:
+def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], Iterator[Entry]]:
     """
     When reading CSV data, we know the fields and their order beforehand, but not for JSON
     (unless hard coded in configuration). We prepare sort order here, but it is not usable
@@ -45,6 +45,8 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], Iterator[Entr
     """
     csv_files = glob.glob("source/*csv")
     tsv_files = glob.glob("source/*tsv")
+    # counter - generator needs mutable object
+    size = [0]
     if csv_files or tsv_files:
         fp = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
         if csv_files:
@@ -67,15 +69,17 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], Iterator[Entr
                         entry[field["name"]] = float(entry[field["name"]])
                     else:
                         raise RuntimeError(f"Uknown type: {field['type']}, given in CSV import")
+                size[0] += 1
                 yield entry
             fp.close()
 
-        return source_order, get_entries()
+        return source_order, size, get_entries()
     else:
         jsonl_files = glob.glob("source/*jsonl")
         fp = open(jsonl_files[0])
 
         source_order = []
+        size = [0]
 
         def get_entries() -> Iterator[Entry]:
             for line in fp:
@@ -85,7 +89,8 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], Iterator[Entr
                 # this could be configurable to speed up
                 keys = list(entry.keys())
                 _update_json_source_order(source_order, keys)
+                size[0] += 1
                 yield entry
             fp.close()
 
-        return source_order, get_entries()
+        return source_order, size, get_entries()
