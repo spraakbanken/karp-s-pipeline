@@ -4,7 +4,6 @@ import importlib
 from typing import Any
 
 from karpspipeline import karps
-from karpspipeline import csvmetadata
 from karpspipeline.common import ImportException
 from karpspipeline.read import read_data
 from karpspipeline.util import json
@@ -35,9 +34,6 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
 
     if run_all or (subcommand == "karps" and "karps" in config.export):
         karps.export(config, entry_schema, source_order, entries, fields)
-        cmd_found = True
-    if run_all or subcommand == "csvmetadata":
-        csvmetadata.export(config, entries, fields)
         cmd_found = True
 
     if not cmd_found:
