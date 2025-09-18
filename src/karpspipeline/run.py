@@ -98,9 +98,7 @@ def _check(key: str, field: InferredField, values: object) -> None:
 
 def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
     schema = {}
-    res = []
     for entry in entries:
-        res.append(entry)
         for key in entry:
             values = entry[key]
             if key in schema:
