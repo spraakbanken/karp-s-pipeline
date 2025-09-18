@@ -6,16 +6,13 @@ class GitRepo:
         self.repo_path = repo_path
 
     def _run(self, *args):
-        try:
-            subprocess.run(
-                ["git", *args],
-                cwd=self.repo_path,
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-        except subprocess.CalledProcessError as e:
-            print(f"Error: {e.stderr.strip()}")
+        subprocess.run(
+            ["git", *args],
+            cwd=self.repo_path,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
 
     def init(self):
         self._run("init")
@@ -23,4 +20,4 @@ class GitRepo:
 
     def commit_all(self, msg=None):
         self._run("add", "--all")
-        self._run("commit", "--message", msg)
+        self._run("commit", "--allow-empty", "--message", msg)
