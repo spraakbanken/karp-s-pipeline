@@ -7,6 +7,8 @@ from karpspipeline.karps.models import KarpsConfig
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 from karpspipeline.util import yaml
 
+VARCHAR_CUTOFF = 200  # if a field contains values larger than this, use TEXT type and skip indexing
+
 
 def create_karps_backend_config(
     pipeline_config: PipelineConfig,
@@ -56,7 +58,7 @@ def create_karps_backend_config(
 def create_karps_sql(
     pipeline_config: PipelineConfig, karps_config: KarpsConfig, resource_config: EntrySchema
 ) -> Generator[None, Entry | None, None]:
-    def schema(table_name: str, structure: EntrySchema) -> str:
+    def schema(table_name: str, structure: EntrySchema) -> tuple[str, str]:
         """
         Find schema automatically by going through all elements
         """
@@ -80,11 +82,12 @@ def create_karps_sql(
         def inner(_structure):
             tables = []
             fields = []
+            indices = []
             for field_name, field in _structure.items():
                 if field.collection:
-                    field_copy = InferredField(type=field.type, collection=False)
+                    field_copy = InferredField(type=field.type, collection=False, extra=field.extra)
                     # currently single field, but could support collection: true & type: object in future
-                    _, inner_fields = inner({"value": field_copy})
+                    _, inner_fields, _ = inner({"value": field_copy})
                     inner_table_name = f"{table_name}__{field_name}"
                     tables.append(f"""
                     CREATE TABLE `{inner_table_name}` (
@@ -95,21 +98,32 @@ def create_karps_sql(
                     CHARACTER SET utf8mb4
                     COLLATE utf8mb4_swedish_ci;
                     """)
+                    if field.type == "text" and field.extra["length"] <= VARCHAR_CUTOFF:
+                        indices.append(
+                            f"CREATE INDEX `{inner_table_name}_idx` ON `{inner_table_name}`(value({field.extra['length']}));"
+                        )
                 else:
                     if field.type == "integer":
                         column_type = "INT"
                     elif field.type == "text":
-                        column_type = "TEXT"
+                        if field.extra["length"] > VARCHAR_CUTOFF:
+                            column_type = "TEXT"
+                        else:
+                            column_type = f"VARCHAR({field.extra['length']})"
+                            indices.append(
+                                f"CREATE INDEX `{table_name}__{field_name}_idx` ON `{table_name}`(`{field_name}`({field.extra['length']}));"
+                            )
                     elif field.type == "float":
                         column_type = "FLOAT"
                     else:
                         raise Exception("unknown column type", field.type)
                     fields.append(f"`{field_name}` {column_type}")
-            return tables, fields
+            return tables, fields, indices
 
-        tables, fields = inner(structure)
+        tables, fields, indices = inner(structure)
 
-        return f"""
+        return (
+            f"""
         {delete_statement(table_name)}
         CREATE TABLE `{table_name}` (
             __id INT PRIMARY KEY,
@@ -117,7 +131,9 @@ def create_karps_sql(
         )
         CHARACTER SET utf8mb4
         COLLATE utf8mb4_swedish_ci;
-        """ + "".join(tables)
+        """
+            + "".join(tables)
+        ), "\n".join(indices) + "\n"
 
     def entries_sql() -> Generator[list[str], Entry | None, None]:
         idx = 0
@@ -168,13 +184,15 @@ def create_karps_sql(
             lines = [
                 f"INSERT INTO `{pipeline_config.resource_id}` (`__id`, {', '.join(f'`{column}`' for column in columns)}) VALUES ({idx}, {', '.join(values)});\n"
             ] + inserts
+
             idx += 1
 
     sql_gen = entries_sql()
     next(sql_gen)
     with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:
-        schema_sql = schema(pipeline_config.resource_id, resource_config)
+        schema_sql, indices = schema(pipeline_config.resource_id, resource_config)
         fp.write(schema_sql)
+        fp.write(indices)
         while True:
             entry = yield
             if not entry:

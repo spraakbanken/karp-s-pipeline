@@ -1,7 +1,7 @@
 import glob
 from collections.abc import Iterator
 import importlib
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 from karpspipeline import karps
 
@@ -97,6 +97,17 @@ def _check(key: str, field: InferredField, values: object) -> None:
 
 
 def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
+    def _add_max_length(field: InferredField):
+        if field.type == "text":
+            if field.collection:
+                if values:
+                    field_maxlen = max((len(value) for value in values))
+                else:
+                    field_maxlen = 0
+            else:
+                field_maxlen = len(cast(str, values))
+            field.extra["length"] = max(cast(int, field.extra.get("length", 0)), field_maxlen)
+
     schema = {}
     for entry in entries:
         for key in entry:
@@ -121,6 +132,7 @@ def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
                 field["type"] = type_lookup[typ]
                 print(f"Adding {key} = {json.dumps(field)}")
                 schema[key] = InferredField.model_validate(field)
+            _add_max_length(schema[key])
     return schema
 
 
@@ -184,11 +196,12 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
     Update the entry schema and each entry with this information
     """
 
-    def _get_converter(converter: str) -> Callable[[object], object]:
+    def _get_converter(converter: str) -> dict[str, Callable[[object], object]]:
         [module, func] = converter.split(".")
         mod = importlib.import_module("karpspipeline.converters." + module)
         func_obj = getattr(mod, func)
-        return func_obj
+        update_schema = getattr(mod, func + "_update_schema")
+        return {"update_schema": update_schema, "convert": func_obj}
 
     add_all = False
     converted_fields = []
@@ -207,14 +220,16 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
         if field.exclude:
             entry_schema.pop(field.target, None)
         else:
-            entry_schema[field.target] = entry_schema[field.name]
+            # TODO here we copy the schema from source field, but length may be different
+            entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
         # pre-import each converter
         if field.converter:
             converters[field.converter] = _get_converter(field.converter)
+            converters[field.converter]["update_schema"](entry_schema[field.target])
 
     def _convert_value(converter: str | None, val: Any) -> Any:
         if converter:
-            return converters[converter](val)
+            return converters[converter]["convert"](val)
         return val
 
     def convert(entry: Entry) -> Entry:

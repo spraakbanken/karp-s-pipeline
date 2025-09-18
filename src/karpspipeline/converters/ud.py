@@ -2,7 +2,19 @@
 A lot of this is copied from Sparv and modified
 """
 
+from karpspipeline.models import InferredField
+
+
 UD_FALLBACK = "X"
+
+"""
+The point of all the _update_schema functions are to inform the pipeline
+about the max length of the field, which can affect results of running
+"""
+
+
+def saldo_to_ud_update_schema(field: InferredField):
+    field.extra["length"] = 5
 
 
 def saldo_to_ud(pos: str) -> str:
@@ -10,8 +22,16 @@ def saldo_to_ud(pos: str) -> str:
     return suc_to_ud(saldo_to_suc(pos))
 
 
+def saldo_to_suc_update_schema(field: InferredField):
+    field.extra["length"] = 2
+
+
 def saldo_to_suc(pos: str) -> str:
     return _saldo_pos_to_suc[pos]
+
+
+def suc_to_ud_update_schema(field: InferredField):
+    field.extra["length"] = 5
 
 
 def suc_to_ud(pos: str) -> str:
@@ -52,6 +72,10 @@ def suc_to_ud(pos: str) -> str:
         "PAD": "PUNCT",
     }
     return pos_dict.get(pos.upper(), UD_FALLBACK)
+
+
+def isof_to_ud_update_schema(field: InferredField):
+    field.extra["length"] = 5
 
 
 def isof_to_ud(pos: str) -> str:

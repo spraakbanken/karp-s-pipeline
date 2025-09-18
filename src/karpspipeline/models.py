@@ -12,6 +12,7 @@ type EntrySchema = dict[str, InferredField]
 class InferredField(BaseModel):
     type: str
     collection: bool = False
+    extra: dict[str, object] = {}
 
 
 class MultiLang(RootModel[str | dict[str, str]]):
