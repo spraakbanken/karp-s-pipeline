@@ -15,7 +15,7 @@ The pipeline is centered around:
 The main commands that can be invoked are:
 - ~~**prepare**~~ - read the data and infer schema and output configuration files (*importers*, *modifiers*)
 - **run** - do the needed modifications to each entry and output data in new formats (*modifiers*, *exporters*)
-- **install** - runs commands and move files, such as adding data to a database, running a command in anther tool etc. (*installers*)
+- **install** - runs commands and move files, such as adding data to a database, running a command in another tool etc. (*installers*)
 
 Note: **prepare** is not implemented as a separate step yet, but the tasks are done when calling **run**.
 
