@@ -64,10 +64,10 @@ class ExportFieldConfig(RootModel[str]):
     @computed_field
     @property
     def name(self) -> str:
-        m = CONVERTER_PATTERN.fullmatch(self.root)
+        m = NOT_PATTERN.fullmatch(self.root)
         if m:
             return m.group("name")
-        m = NOT_PATTERN.fullmatch(self.root)
+        m = CONVERTER_PATTERN.fullmatch(self.root)
         if m:
             return m.group("name")
         raise ValueError("missing field name")

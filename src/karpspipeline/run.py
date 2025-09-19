@@ -218,7 +218,7 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
         entry_schema.clear()
     for field in converted_fields:
         if field.exclude:
-            entry_schema.pop(field.target, None)
+            entry_schema.pop(field.name, None)
         else:
             # TODO here we copy the schema from source field, but length may be different
             entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
