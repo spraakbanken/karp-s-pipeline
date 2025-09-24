@@ -25,7 +25,6 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
     # pre-import tasks, invoke conversions to know which fields *will* be there
     # TODO collect number of items
     entry_schema, source_order, [size] = _pre_import_resource(config)
-    fields = _compare_to_current_fields(config, entry_schema)
 
     # generator for entries
     entries = _import_resource(config, entry_schema, source_order)
@@ -45,6 +44,7 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
         run_all = True
     cmd_found = False
 
+    fields = _compare_to_current_fields(config, entry_schema)
     if run_all or (subcommand == "karps" and "karps" in config.export):
         # create karps backend config
         new_tasks = karps.export(config, entry_schema, source_order, size, fields)
