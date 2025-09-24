@@ -56,13 +56,14 @@ def add_config(pipeline_config: PipelineConfig, karps_config: KarpsConfig, resou
 
     if not main_dir.is_dir():
         main_dir.mkdir()
-
-        field_config = main_dir / "fields.yaml"
-        field_config.touch()
-        main_config = main_dir / "config.yaml"
-        main_config.touch()
-        resource_dir.mkdir()
         repo.init()
+
+    field_config = main_dir / "fields.yaml"
+    field_config.touch()
+    main_config = main_dir / "config.yaml"
+    main_config.touch()
+    if not resource_dir.is_dir():
+        resource_dir.mkdir()
 
     # resource-yaml contains a list of fields
     karps_resource_config = output_dir / f"{resource_id}_karps.yaml"
