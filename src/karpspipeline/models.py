@@ -41,7 +41,7 @@ class ConfiguredField(BaseModel):
 
 
 CONVERTER_PATTERN = re.compile(
-    r"^(?P<name>[^:]+)"
+    r"^((['\"](?P<cited_name>([^:]+))['\"])|(?P<uncited_name>([^:\s]+)))"
     r"(?:\:(?P<converter>\w+(?:\.\w+)*))?"
     r"(?:\s+as\s+(?P<target>\w+))?$"
 )
@@ -67,9 +67,10 @@ class ExportFieldConfig(RootModel[str]):
         m = NOT_PATTERN.fullmatch(self.root)
         if m:
             return m.group("name")
+
         m = CONVERTER_PATTERN.fullmatch(self.root)
         if m:
-            return m.group("name")
+            return m.group("cited_name") or m.group("uncited_name")
         raise ValueError("missing field name")
 
     @computed_field
