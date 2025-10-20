@@ -54,7 +54,10 @@ def cli():
 
             if sys.argv[1] == "install":
                 # install calls installers (always application specific, like Karp-S backend or resource repo)
-                install(config)
+                if len(sys.argv) > 2:
+                    install(config, subcommand=sys.argv[2])
+                else:
+                    install(config)
 
     except Exception:
         print("error.")

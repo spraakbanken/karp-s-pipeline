@@ -3,19 +3,13 @@ from collections.abc import Iterator
 import importlib
 from typing import Any, Callable, cast
 
-from karpspipeline import karps
+from karpspipeline import karps, sbxrepo
 
-from karpspipeline.common import ImportException, get_output_dir
+from karpspipeline.common import ImportException, create_output_dir
 from karpspipeline.read import read_data
 from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
-from karpspipeline.models import (
-    ConfiguredField,
-    Entry,
-    EntrySchema,
-    PipelineConfig,
-    InferredField,
-)
+from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 
 
 type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
@@ -44,18 +38,10 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
         run_all = True
     cmd_found = False
 
-    fields = _compare_to_current_fields(config, entry_schema)
-    if run_all or (subcommand == "karps" and "karps" in config.export):
-        # create karps backend config
-        new_tasks = karps.export(config, entry_schema, source_order, size, fields)
-        # add task for generating karp-s backend SQL
-        tasks.extend(new_tasks)
-        cmd_found = True
-
     if run_all or subcommand == "dump":
 
         def json_dump():
-            with open(get_output_dir() / f"{config.resource_id}.jsonl", "w") as fp:
+            with open(create_output_dir() / f"{config.resource_id}.jsonl", "w") as fp:
                 while True:
                     entry = yield
                     if not entry:
@@ -71,6 +57,15 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
 
         # add task for dumping data as jsonl (with all modifications)
         tasks.append(task)
+        cmd_found = True
+
+    if (run_all and "karps" in config.export.default) or subcommand == "karps":
+        new_tasks = karps.export(config, entry_schema, source_order, size)
+        tasks.extend(new_tasks)
+        cmd_found = True
+    if (run_all and "sbxrepo" in config.export.default) or subcommand == "sbxrepo":
+        sbxrepo.export(config, size)
+        cmd_found = True
 
     # for each entry, do the needed tasks
     for entry in entries:
@@ -161,33 +156,6 @@ def _import_resource(
 ) -> Iterator[Entry]:
     _, _, entries = read_data(pipeline_config)
     return entries
-
-
-def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema) -> list[dict[str, str]]:
-    """
-    Looks in the main config file for presets about the fields, mainly label but could also be tagset
-    """
-
-    def to_dict(elems: list[ConfiguredField]) -> dict[str, ConfiguredField]:
-        return {elem.name: elem for elem in elems}
-
-    main_fields: dict[str, ConfiguredField] = to_dict(config.fields)
-    new_fields = []
-    for key, field in entry_schema.items():
-        field: InferredField
-        if key in main_fields:
-            main_field = main_fields[key]
-            # TODO other settings, like values for enums are not taken into account
-            if main_field.collection != field.collection or main_field.type != field.type:
-                raise ImportError(
-                    f"{key} is configured, but it is not the same as in this resource, must rename or add alias."
-                )
-            new_fields.append(main_field.model_dump(exclude_unset=True))
-        else:
-            new_field = field.model_dump(exclude_unset=True)
-            new_field["name"] = key
-            new_fields.append(new_field)
-    return new_fields
 
 
 def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Callable[[Entry], Entry]:

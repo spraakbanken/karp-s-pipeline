@@ -6,18 +6,25 @@ class GitRepo:
         self.repo_path = repo_path
 
     def _run(self, *args):
-        subprocess.run(
+        result = subprocess.run(
             ["git", *args],
             cwd=self.repo_path,
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
         )
+
+        if result.returncode != 0:
+            if "nothing to commit" not in result.stdout:
+                raise RuntimeError("Error when calling Git", result.stdout + ", " + result.stderr)
 
     def init(self):
         self._run("init")
         self._run("commit", "--message", "init", "--allow-empty")
 
-    def commit_all(self, msg=None):
+    def commit_all(self, msg=None, allow_empty=True):
         self._run("add", "--all")
-        self._run("commit", "--allow-empty", "--message", msg)
+        commit_args = []
+        if allow_empty:
+            commit_args.append("--allow-empty")
+        self._run("commit", *commit_args, "--message", msg)

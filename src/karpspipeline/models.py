@@ -1,8 +1,6 @@
-from collections import UserDict
 from collections.abc import Mapping
 import re
-from typing import Any
-from pydantic import BaseModel, Field, RootModel, field_validator, computed_field
+from pydantic import BaseModel, Field, RootModel, field_serializer, field_validator, computed_field
 
 type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
@@ -15,22 +13,47 @@ class InferredField(BaseModel):
     extra: dict[str, object] = {}
 
 
-class MultiLang(RootModel[str | dict[str, str]]):
-    """
-    Model that represents labels that can be be either just the same for all languages:
-    "SALDO"
-    or multi lang:
-    {"eng": "Word list", "swe": "Ordlista"}
-    """
+def MultiLangMinLength(min_length: int = 1) -> type:
+    class MultiLangInner(RootModel[str | dict[str, str]]):
+        """
+        Model that represents labels that can be be either just the same for all languages:
+        "SALDO"
+        or multi lang:
+        {"eng": "Word list", "swe": "Ordlista"}
+        """
 
-    @field_validator("root")
-    def validate_label(cls, value):
-        if isinstance(value, dict):
-            lang_codes = ["swe", "eng"]
-            invalid_keys = [key for key in value if key not in lang_codes]
-            if invalid_keys:
-                raise ValueError(f"label languages allowed: {','.join(lang_codes)}, found: {', '.join(invalid_keys)}")
-        return value
+        @field_validator("root")
+        def validate_label(cls, value):
+            if isinstance(value, dict):
+                lang_codes = ["swe", "eng"]
+                invalid_keys = [key for key in value if key not in lang_codes]
+                if invalid_keys:
+                    raise ValueError(
+                        f"label languages allowed: {','.join(lang_codes)}, found: {', '.join(invalid_keys)}"
+                    )
+                for item in value.values():
+                    if len(item) < min_length:
+                        raise ValueError(f"min. length: {min_length}")
+            elif isinstance(value, str):
+                if len(value) < min_length:
+                    raise ValueError(f"min. length: {min_length}")
+            return value
+
+        @field_serializer("root", mode="plain")
+        def dump(self, value: str | dict[str, str]) -> dict[str, str]:
+            if isinstance(value, str):
+                return {"swe": value, "eng": value}
+            return value
+
+    return MultiLangInner
+
+
+class MultiLang(MultiLangMinLength(0)):
+    pass
+
+
+class NonEmptyMultiLang(MultiLangMinLength(1)):
+    pass
 
 
 class ConfiguredField(BaseModel):
@@ -86,30 +109,29 @@ class ExportFieldConfig(RootModel[str]):
         return m.group("target") if m else self.name
 
 
-class ExportConfig(RootModel[dict[str, Any]], UserDict):
-    @computed_field
-    @property
-    def fields(self) -> list[ExportFieldConfig]:
-        return [ExportFieldConfig(field) for field in self.root.get("fields", [])]
-
-    def __getitem__(self, *args, **kwargs):
-        return self.root.__getitem__(*args, **kwargs)
-
-    def __contains__(self, *args, **kwargs):
-        return self.root.__contains__(*args, **kwargs)
+class ExportConfig(BaseModel):
+    # default exporters
+    default: list[str] = []
+    fields: list[ExportFieldConfig] = []
 
 
 class PipelineConfig(BaseModel):
     class Config:
-        extra = "forbid"
+        extra = "allow"
 
     resource_id: str
-    name: MultiLang
+    name: NonEmptyMultiLang
     description: MultiLang | None = None
     # the elements of type object will be handled by the exporters models
     export: ExportConfig
+    # default installers
+    install: list[str] = []
     # the elements of type object will be handled by the importers models
     import_settings: Mapping[str, object] = Field(alias="import", default={})
     # main field list, master order and configuration, new fields may be added or aliased to existing fields
     # entry_word is not in this list and is always the first element, wether used directly or as alias
     fields: list[ConfiguredField]
+
+    @property
+    def modules(self) -> dict[str, object]:
+        return self.__pydantic_extra__ or {}
