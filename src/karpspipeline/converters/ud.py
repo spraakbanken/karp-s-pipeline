@@ -122,7 +122,7 @@ _saldo_pos_to_suc = {
 }
 
 _isof_nyord_to_ud = {
-    # combined words (klimatbanta, klimatbantare) get X - unkown
+    # combined words (klimatbanta, klimatbantare) get X - unknown
     "substantiv": "NOUN",
     "substantiv, förkortning": "NOUN",
     "substantiv, namn/eponym, teleskopord": "NOUN",
