@@ -13,28 +13,31 @@ about the max length of the field, which can affect results of running
 """
 
 
-def saldo_to_ud_update_schema(field: InferredField):
+def saldo_to_ud_update_schema(field: InferredField) -> InferredField:
     field.extra["length"] = 5
+    return field
 
 
-def saldo_to_ud(pos: str) -> str:
+def saldo_to_ud(_, pos: str) -> str:
     # TODO memoize
-    return suc_to_ud(saldo_to_suc(pos))
+    return suc_to_ud(None, saldo_to_suc(None, pos))
 
 
-def saldo_to_suc_update_schema(field: InferredField):
+def saldo_to_suc_update_schema(field: InferredField) -> InferredField:
     field.extra["length"] = 2
+    return field
 
 
-def saldo_to_suc(pos: str) -> str:
+def saldo_to_suc(_, pos: str) -> str:
     return _saldo_pos_to_suc[pos]
 
 
-def suc_to_ud_update_schema(field: InferredField):
+def suc_to_ud_update_schema(field: InferredField) -> InferredField:
     field.extra["length"] = 5
+    return field
 
 
-def suc_to_ud(pos: str) -> str:
+def suc_to_ud(_, pos: str) -> str:
     """
     Convert SUC tags to UPOS.
 
@@ -74,11 +77,12 @@ def suc_to_ud(pos: str) -> str:
     return pos_dict.get(pos.upper(), UD_FALLBACK)
 
 
-def isof_to_ud_update_schema(field: InferredField):
+def isof_to_ud_update_schema(field: InferredField) -> InferredField:
     field.extra["length"] = 5
+    return field
 
 
-def isof_to_ud(pos: str) -> str:
+def isof_to_ud(_, pos: str) -> str:
     """
     Convert isofs internal markup for POS into ud (experimental)
     """

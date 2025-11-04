@@ -188,16 +188,20 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
         if field.exclude:
             entry_schema.pop(field.name, None)
         else:
-            # TODO here we copy the schema from source field, but length may be different
-            entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
+            if field.name == "*":
+                # the converter must set the schema, placeholder value
+                entry_schema[field.target] = InferredField(type="str")
+            else:
+                # TODO here we copy the schema from source field, but length may be different
+                entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
         # pre-import each converter
         if field.converter:
             converters[field.converter] = _get_converter(field.converter)
-            converters[field.converter]["update_schema"](entry_schema[field.target])
+            entry_schema[field.target] = converters[field.converter]["update_schema"](entry_schema[field.target])
 
     def _convert_value(converter: str | None, val: Any) -> Any:
         if converter:
-            return converters[converter]["convert"](val)
+            return converters[converter]["convert"](config.resource_id, val)
         return val
 
     def convert(entry: Entry) -> Entry:
@@ -208,8 +212,11 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
 
         for field in converted_fields:
             if not field.exclude:
-                val = entry[field.name]
-                new_entry[field.target] = _convert_value(field.converter, val)
+                if field.name == "*":
+                    new_entry[field.target] = _convert_value(field.converter, entry)
+                else:
+                    val = entry[field.name]
+                    new_entry[field.target] = _convert_value(field.converter, val)
 
         return new_entry
 
