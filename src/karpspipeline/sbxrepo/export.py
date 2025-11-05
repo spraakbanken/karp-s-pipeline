@@ -37,7 +37,7 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     if not sbmetadata_config.metadata.downloads:
         metadata["downloads"] = [
             {
-                "url": f"https://spraakbanken.gu.se/lb/resurser/data/{pipeline_config.resource_id}.jsonl",
+                "url": sbmetadata_config.data.download_url_template.format(resource_id=pipeline_config.resource_id),
                 "license": sbmetadata_config.metadata.license,
                 "format": "jsonl",
             }
@@ -45,7 +45,7 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     if not sbmetadata_config.metadata.interfaces:
         metadata["interfaces"] = [
             {
-                "url": f"https://spraakbanken.gu.se/karp-s?resources={pipeline_config.resource_id}",
+                "url": sbmetadata_config.data.interface_url_template.format(resource_id=pipeline_config.resource_id),
                 "license": sbmetadata_config.metadata.license,
             }
         ]

@@ -41,6 +41,8 @@ class Data(BaseModel):
 
     data_dir: str
     remote_host: str | None = None
+    download_url_template: str
+    interface_url_template: str
 
 
 class SBXRepoConfig(BaseModel):
