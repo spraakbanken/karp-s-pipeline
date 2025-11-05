@@ -10,9 +10,9 @@ def page_to_str(page, length=4):
 
 # templates for creating links to facsimiles
 templates = {
-    "saol1": lambda page_num: f"SAOL01/SAOL08_{page_to_str(page_num)}.png",
-    "saol6": lambda page_num: f"SAOL06/SAOL08_{page_to_str(page_num)}.png",
-    "saol7": lambda page_num: f"SAOL07/SAOL08_{page_to_str(page_num)}.png",
+    "saol1": lambda page_num: f"SAOL01/SAOL01_{page_to_str(page_num)}.png",
+    "saol6": lambda page_num: f"SAOL06/SAOL06_{page_to_str(page_num)}.png",
+    "saol7": lambda page_num: f"SAOL07/SAOL07_{page_to_str(page_num)}.png",
     "saol8": lambda page_num: f"SAOL08/SAOL08_{page_to_str(page_num)}.png",
     "saol9": lambda page_num: f"SAOL09/SAOL09_{page_to_str(page_num)}.png",
     "saol10": lambda page_num: f"SAOL10/SAOL10_{page_to_str(page_num)}.png",
