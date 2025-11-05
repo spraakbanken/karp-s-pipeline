@@ -28,11 +28,11 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     metadata["short_description"] = pipeline_config.description.model_dump(exclude_none=True)
 
     # add derived values to target
+    date_str = _get_current_date_string()
     if not sbmetadata_config.metadata.created:
-        metadata["created"] = _get_current_date_string()
-        metadata.pop("updated", None)
-    elif not sbmetadata_config.metadata.updated:
-        metadata["updated"] = _get_current_date_string()
+        metadata["created"] = date_str
+    if not sbmetadata_config.metadata.updated:
+        metadata["updated"] = date_str
 
     if not sbmetadata_config.metadata.downloads:
         metadata["downloads"] = [
