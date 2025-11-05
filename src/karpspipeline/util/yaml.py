@@ -12,7 +12,9 @@ class IndentDumper(yaml.SafeDumper):
 
 
 def dump(obj: object, fp, indent: int = 2):
-    out = yaml.dump(obj, allow_unicode=True, Dumper=IndentDumper, indent=indent, default_flow_style=False)
+    out = yaml.dump(
+        obj, allow_unicode=True, Dumper=IndentDumper, indent=indent, default_flow_style=False, sort_keys=False
+    )
     fp.write(out)
 
 
