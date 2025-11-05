@@ -10,17 +10,17 @@ def page_to_str(page, length=4):
 
 # templates for creating links to facsimiles
 templates = {
-    "saol1": lambda page_num: f"SAOL01/SAOL01_{page_to_str(page_num)}.png",
-    "saol6": lambda page_num: f"SAOL06/SAOL06_{page_to_str(page_num)}.png",
-    "saol7": lambda page_num: f"SAOL07/SAOL07_{page_to_str(page_num)}.png",
-    "saol8": lambda page_num: f"SAOL08/SAOL08_{page_to_str(page_num)}.png",
-    "saol9": lambda page_num: f"SAOL09/SAOL09_{page_to_str(page_num)}.png",
-    "saol10": lambda page_num: f"SAOL10/SAOL10_{page_to_str(page_num)}.png",
-    "saol11": lambda page_num: f"SAOL11/SAOL11_{page_to_str(page_num)}.png",
-    "saol12": lambda page_num: f"SAOL12/SAOL12_{page_to_str(page_num)}.png",
-    "saol13": lambda page_num: f"SAOL13/SAOL13_{page_to_str(page_num)}.png",
+    "saol1-faksimil": lambda page_num: f"SAOL01/SAOL01_{page_to_str(page_num)}.png",
+    "saol6-faksimil": lambda page_num: f"SAOL06/SAOL06_{page_to_str(page_num)}.png",
+    "saol7-faksimil": lambda page_num: f"SAOL07/SAOL07_{page_to_str(page_num)}.png",
+    "saol8-faksimil": lambda page_num: f"SAOL08/SAOL08_{page_to_str(page_num)}.png",
+    "saol9-faksimil": lambda page_num: f"SAOL09/SAOL09_{page_to_str(page_num)}.png",
+    "saol10-faksimil": lambda page_num: f"SAOL10/SAOL10_{page_to_str(page_num)}.png",
+    "saol11-faksimil": lambda page_num: f"SAOL11/SAOL11_{page_to_str(page_num)}.png",
+    "saol12-faksimil": lambda page_num: f"SAOL12/SAOL12_{page_to_str(page_num)}.png",
+    "saol13-faksimil": lambda page_num: f"SAOL13/SAOL13_{page_to_str(page_num)}.png",
     # 5 numbers here
-    "saol14": lambda page_num: f"SAOL14/SAOL14_{page_to_str(page_num, length=5)}.png",
+    "saol14-faksimil": lambda page_num: f"SAOL14/SAOL14_{page_to_str(page_num, length=5)}.png",
 }
 
 
