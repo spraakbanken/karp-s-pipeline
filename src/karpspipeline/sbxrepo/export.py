@@ -65,4 +65,4 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
 
 
 def _get_current_date_string():
-    return datetime.now().strftime("%Y%m%d")
+    return datetime.now().strftime("%Y-%m-%d")

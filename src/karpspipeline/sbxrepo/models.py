@@ -14,7 +14,7 @@ class Metadata(BaseModel):
     # should not be copied to metadata file
     yaml_export_path: str
     schema_: str = Field(..., alias="schema")
-    license: str = "CC BY 4.0"
+    license: str = "CC-BY-4.0"
     # can probably be set automatcially
     downloads: Sequence[str] = ()
     interfaces: Sequence[str] = ()
@@ -33,6 +33,7 @@ class Metadata(BaseModel):
     standard_reference: str | None = None
     other_references: Sequence[str] = ()
     intended_uses: NonEmptyMultiLang | None = None
+    language_codes: list[str] = ["swe"]
 
 
 class Data(BaseModel):
