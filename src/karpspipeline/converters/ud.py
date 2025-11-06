@@ -89,6 +89,29 @@ def isof_to_ud(_, pos: str) -> str:
     return _isof_nyord_to_ud.get(pos, UD_FALLBACK)
 
 
+def sveak_to_ud_update_schema(field: InferredField) -> InferredField:
+    field.extra["length"] = 5
+    return field
+
+
+def sveak_to_ud(_, pos: str) -> str:
+    """
+    Convert internal/legacy SveAk POS to ud
+    """
+    if pos.startswith("subst") or pos == "ssg":
+        return "NOUN"
+    elif pos.startswith("adj"):
+        return "ADJ"
+    elif pos.startswith("pron"):
+        return "PRON"
+    elif pos.startswith("verb"):
+        return "VERB"
+    elif pos.startswith("övrig"):
+        return "X"
+    else:
+        raise ValueError(f"Unknown pos {pos}")
+
+
 _saldo_pos_to_suc = {
     "nn": "NN",
     "av": "JJ",
