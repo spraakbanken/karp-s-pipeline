@@ -15,7 +15,7 @@ def _upload_data(pipeline_config: PipelineConfig, sbmetadata_config: SBXRepoConf
     remote_dir = sbmetadata_config.data.data_dir
     output_dir = get_output_dir()
     file = output_dir / f"{pipeline_config.resource_id}.jsonl"
-    subprocess.check_call(["rsync", "--dry-run", str(file), f"{host}:{remote_dir}"])
+    subprocess.check_call(["rsync", str(file), f"{host}:{remote_dir}"])
 
 
 def _install_metadata_file(pipeline_config: PipelineConfig, sbmetadata_config: SBXRepoConfig):
