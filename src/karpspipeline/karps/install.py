@@ -1,6 +1,7 @@
 from contextlib import contextmanager
 
 from io import TextIOWrapper
+import logging
 from pathlib import Path
 import shutil
 from typing import Iterable, Iterator
@@ -14,8 +15,10 @@ from karpspipeline.models import PipelineConfig
 from karpspipeline.util import yaml
 from karpspipeline.util.git import GitRepo
 
+logger = logging.getLogger("karps")
 
-def add_to_db(resource_id, karps_config):
+
+def add_to_db(pipeline_config: PipelineConfig, karps_config):
     @contextmanager
     def get_db_cursor(karps_config: KarpsConfig) -> Iterator[MySQLCursorAbstract]:
         connection = mysql.connector.connect(
@@ -33,7 +36,7 @@ def add_to_db(resource_id, karps_config):
             connection.commit()
             connection.close()
 
-    sql_filename = f"output/{resource_id}.sql"
+    sql_filename = get_output_dir(pipeline_config.workdir) / f"{pipeline_config.resource_id}.sql"
     with open(sql_filename) as sql_file:
         with get_db_cursor(karps_config) as cursor:
             buffer = []
@@ -51,7 +54,7 @@ def add_config(pipeline_config: PipelineConfig, karps_config: KarpsConfig, resou
     config_dir = karps_config.output_config_dir
     repo = GitRepo(config_dir)
     main_dir = Path(config_dir)
-    output_dir = get_output_dir()
+    output_dir = get_output_dir(pipeline_config.workdir)
     resource_dir = main_dir / "resources"
 
     if not main_dir.is_dir():
@@ -109,7 +112,7 @@ def _add_tags(
 def _read(filename: Path) -> Map:
     with open(filename) as fp:
         config = yaml.load(fp)
-        print(f"Reading input file: {filename}")
+        logger.info(f"Reading input file: {filename}")
         return config or {}
 
 
@@ -139,7 +142,7 @@ def _update_fields(karps_config: KarpsConfig, pipeline_config: PipelineConfig):
             current_fields = yaml.load_array(fp) or []
     field_lookup = {field["name"]: field for field in current_fields}
     new_fields = []
-    with open(get_output_dir() / "fields.yaml") as fp:
+    with open(get_output_dir(pipeline_config.workdir) / "fields.yaml") as fp:
         fields = yaml.load_array(fp)
         for new_field in fields:
             new_label = new_field.get("label")

@@ -60,7 +60,7 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     except jsonschema_rs.ValidationError as exc:
         raise ImportError("metadata file not valid") from exc
 
-    with open(_get_metadata_file(pipeline_config.resource_id), "w") as fp:
+    with open(_get_metadata_file(pipeline_config), "w") as fp:
         yaml.dump(metadata, fp)
 
 

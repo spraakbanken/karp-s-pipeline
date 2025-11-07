@@ -13,7 +13,7 @@ from karpspipeline.sbxrepo.common import _get_metadata_file
 def _upload_data(pipeline_config: PipelineConfig, sbmetadata_config: SBXRepoConfig):
     host = sbmetadata_config.data.remote_host
     remote_dir = sbmetadata_config.data.data_dir
-    output_dir = get_output_dir()
+    output_dir = get_output_dir(pipeline_config.workdir)
     file = output_dir / f"{pipeline_config.resource_id}.jsonl"
     subprocess.check_call(["rsync", str(file), f"{host}:{remote_dir}"])
 
@@ -23,7 +23,7 @@ def _install_metadata_file(pipeline_config: PipelineConfig, sbmetadata_config: S
     repo = GitRepo(yaml_path)
 
     resource_id = pipeline_config.resource_id
-    metadata_yaml = _get_metadata_file(resource_id)
+    metadata_yaml = _get_metadata_file(pipeline_config)
 
     main_dir = Path(yaml_path)
     # TODO versioning may affect name of file

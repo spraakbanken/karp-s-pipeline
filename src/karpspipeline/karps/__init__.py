@@ -47,7 +47,7 @@ def export(
     size: int,
 ) -> list[Callable[[Entry], Entry]]:
     fields: list[dict[str, str]] = _compare_to_current_fields(config, entry_schema)
-    create_output_dir()
+    create_output_dir(config.workdir)
     karps_config = _get_karps_config(config)
 
     # sql_gen is a coroutine for creating the SQL file for backend
@@ -66,5 +66,5 @@ def export(
 def install(pipeline_config: PipelineConfig):
     karps_config = _get_karps_config(pipeline_config)
 
-    backend_install.add_to_db(pipeline_config.resource_id, karps_config)
+    backend_install.add_to_db(pipeline_config, karps_config)
     backend_install.add_config(pipeline_config, karps_config, pipeline_config.resource_id)

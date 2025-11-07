@@ -11,23 +11,22 @@ class ImportException(Exception):
     pass
 
 
-def create_output_dir() -> Path:
-    return _create_dir("output")
+def create_output_dir(path: Path) -> Path:
+    return _create_dir(path / "output")
 
 
-def get_output_dir() -> Path:
-    return Path("output")
+def get_output_dir(path: Path) -> Path:
+    return Path(path / "output")
 
 
-def get_log_dir() -> Path:
-    return Path("log")
+def get_log_dir(path: Path) -> Path:
+    return Path(path / "log")
 
 
-def create_log_dir() -> Path:
-    return _create_dir("log")
+def create_log_dir(path: Path) -> Path:
+    return _create_dir(path / "log")
 
 
-def _create_dir(dir: str) -> Path:
-    path = Path(dir)
+def _create_dir(path: Path) -> Path:
     path.mkdir(exist_ok=True)
     return path

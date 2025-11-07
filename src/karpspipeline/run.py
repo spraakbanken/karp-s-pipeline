@@ -1,6 +1,6 @@
-import glob
 from collections.abc import Iterator
 import importlib
+import logging
 from typing import Any, Callable, cast
 
 from karpspipeline import karps, sbxrepo
@@ -11,6 +11,8 @@ from karpspipeline.util import json
 from karpspipeline.util.terminal import bold
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 
+
+logger = logging.getLogger(__name__)
 
 type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
 
@@ -31,7 +33,7 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
     # add task to include, exclude, rename or update fields in enries (based on export.fields)
     tasks.append(entry_converter)
 
-    print("Using entry schema: " + json.dumps(entry_schema))
+    logger.info("Using entry schema: " + json.dumps(entry_schema))
 
     run_all = False
     if subcommand == "all":
@@ -41,7 +43,7 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
     if run_all or subcommand == "dump":
 
         def json_dump():
-            with open(create_output_dir() / f"{config.resource_id}.jsonl", "w") as fp:
+            with open(create_output_dir(config.workdir) / f"{config.resource_id}.jsonl", "w") as fp:
                 while True:
                     entry = yield
                     if not entry:
@@ -125,7 +127,7 @@ def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
                     # defer type inference until a concrete value occurs
                     continue
                 field["type"] = type_lookup[typ]
-                print(f"Adding {key} = {json.dumps(field)}")
+                logger.debug(f"Adding {key} = {json.dumps(field)}")
                 schema[key] = InferredField.model_validate(field)
             _add_max_length(schema[key])
     return schema
@@ -137,12 +139,12 @@ def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, 
     Moves the file to output/<resource_id>.jsonl
     If the file is already there, do nothing
     """
-    files = glob.glob("source/*")
+    files = list(pipeline_config.workdir.glob("source/*"))
     if len(files) != 1:
         # we only support one input file
-        print(f"pipeline supports {bold('one')} input file in source/")
+        logger.warning(f"pipeline supports {bold('one')} input file in source/")
     else:
-        print(f"Reading source file: {files[0]}")
+        logger.info(f"Reading source file: {files[0]}")
 
     source_order, size, entries = read_data(pipeline_config)
 

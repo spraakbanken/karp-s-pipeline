@@ -1,4 +1,4 @@
-styles_map = {"plain": "0", "no": "2", "bright": "1", "normal": "22"}
+styles_map = {"plain": "0", "bright": "1", "redbg": "41", "greenbg": "42"}
 
 ansi_esc = "\x1b"
 
@@ -9,4 +9,16 @@ def fmt(*styles: str) -> str:
 
 
 def bold(text: str) -> str:
-    return f"{fmt('bright')}{text}{fmt('normal')}"
+    return f"{fmt('bright')}{text}{fmt('plain')}"
+
+
+def green_box() -> str:
+    return color_box("green")
+
+
+def red_box() -> str:
+    return color_box("red")
+
+
+def color_box(color) -> str:
+    return f"{fmt(f'{color}bg')}  {fmt('plain')}"

@@ -2,7 +2,7 @@ import time
 from typing import Generator, Iterator
 
 
-from karpspipeline.common import create_output_dir
+from karpspipeline.common import create_output_dir, get_output_dir
 from karpspipeline.karps.models import KarpsConfig
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 from karpspipeline.util import yaml
@@ -19,7 +19,7 @@ def create_karps_backend_config(
     fields: list[dict[str, str]],
 ):
     # these fields might already be present in backend config, install must merge this file and backend fields.yaml
-    with open(create_output_dir() / "fields.yaml", "w") as fp:
+    with open(create_output_dir(pipeline_config.workdir) / "fields.yaml", "w") as fp:
         yaml.dump(fields, fp)
 
     def order_fields(fields: Iterator[str]):
@@ -51,7 +51,7 @@ def create_karps_backend_config(
     if pipeline_config.description:
         backend_config["description"] = pipeline_config.description.model_dump()
 
-    with open(f"output/{pipeline_config.resource_id}_karps.yaml", "w") as fp:
+    with open(get_output_dir(pipeline_config.workdir) / f"{pipeline_config.resource_id}_karps.yaml", "w") as fp:
         yaml.dump(backend_config, fp)
 
 
@@ -189,7 +189,7 @@ def create_karps_sql(
 
     sql_gen = entries_sql()
     next(sql_gen)
-    with open(f"output/{pipeline_config.resource_id}.sql", "w") as fp:
+    with open(get_output_dir(pipeline_config.workdir) / f"{pipeline_config.resource_id}.sql", "w") as fp:
         schema_sql, indices = schema(pipeline_config.resource_id, resource_config)
         fp.write(schema_sql)
         fp.write(indices)

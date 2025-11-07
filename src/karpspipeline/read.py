@@ -1,5 +1,4 @@
 import csv
-import glob
 import json
 from typing import Iterator, OrderedDict, cast
 
@@ -43,8 +42,8 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
     (unless hard coded in configuration). We prepare sort order here, but it is not usable
     until after the generators have been consumed.
     """
-    csv_files = glob.glob("source/*csv")
-    tsv_files = glob.glob("source/*tsv")
+    csv_files = list(pipeline_config.workdir.glob("source/*csv"))
+    tsv_files = list(pipeline_config.workdir.glob("source/*tsv"))
     # counter - generator needs mutable object
     size = [0]
     if csv_files or tsv_files:
@@ -75,8 +74,8 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
 
         return source_order, size, get_entries()
     else:
-        jsonl_files = glob.glob("source/*jsonl")
-        fp = open(jsonl_files[0])
+        jsonl_files = pipeline_config.workdir.glob("source/*jsonl")
+        fp = open(next(jsonl_files))
 
         source_order = []
         size = [0]

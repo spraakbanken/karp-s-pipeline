@@ -1,71 +1,92 @@
-from datetime import datetime
 import os
-import shutil
 import sys
-import traceback
+from typing import TYPE_CHECKING
 
-from karpspipeline.common import create_log_dir, get_log_dir, get_output_dir
-from karpspipeline.config import load_config
-from karpspipeline.install import install
-from karpspipeline.run import run
-from karpspipeline.util.terminal import bold
+from karpspipeline.util.terminal import bold, green_box, red_box
 
 
-def clean() -> None:
-    clean_paths = get_log_dir(), get_output_dir()
-    for path in clean_paths:
-        if os.path.exists(path):
-            shutil.rmtree(path)
+if TYPE_CHECKING:
+    from karpspipeline.config import ConfigHandle
+
+
+def clean(configs: list["ConfigHandle"]) -> None:
+    import shutil
+    import os
+    from karpspipeline.common import get_log_dir, get_output_dir
+
+    """
+    remove log and output directories for the given resources
+    """
+    for resource in configs:
+        clean_paths = get_log_dir(resource.workdir), get_output_dir(resource.workdir)
+        for path in clean_paths:
+            if os.path.exists(path):
+                print(f"Remove {path}")
+                shutil.rmtree(path)
 
 
 def cli():
     os.system("")
     if len(sys.argv) > 3:
-        print(f"{bold('Usage:')} karps-pipeline run/install")
-        print()
-        print(f"{bold('run')} - prepares the material")
-        print(f"{bold('install')} - adds the material to the requested system")
-        print(f"{bold('clean')} - remove genereated files")
-        print()
-        print("karps-pipeline run csv-metadata")
-        print()
-        print("karps-pipeline install karps (karps-backend)")
-        print("karps-pipeline install sbx-repo (add resources to some repo, don't know where yet)")
-        print("karps-pipeline install sbx-metadata (add resources to some repo, don't know where yet)")
-        print("karps-pipeline install all (do all of the above)")
-        print()
-        print(
-            "Set environment variable KARPSPIPELINE_CONFIG to a config.yaml which will be merged with the project ones"
+        help_text = []
+        help_text.append(f"{bold('Usage:')} karps-pipeline run/install")
+        help_text.append("")
+        help_text.append(f"{bold('run')} - prepares the material")
+        help_text.append(f"{bold('install')} - adds the material to the requested system")
+        help_text.append(f"{bold('clean')} - remove genereated files")
+        help_text.append("")
+        help_text.append("Subcommands:")
+        help_text.append("")
+        help_text.append("karps-pipeline install karps")
+        help_text.append("karps-pipeline install sbxrepo")
+        help_text.append("")
+        help_text.append(
+            "Automatically picks up a config.yaml in current directory, checks for parents and children and runs the command on all resources this level and below."
         )
+        print("\n".join(help_text))
         return 1
 
-    try:
-        if sys.argv[1] == "clean":
-            clean()
-        else:
-            config = load_config(os.getenv("KARPSPIPELINE_CONFIG"))
+    import logging
+    from karpspipeline.config import find_configs, load_config
+    from karpspipeline.install import install
+    from karpspipeline.run import run
+    import karpspipeline.logging as karps_logging
 
-            if sys.argv[1] == "run":
-                # run calls importers and exporters
-                if len(sys.argv) > 2:
-                    run(config, subcommand=sys.argv[2])
-                else:
-                    run(config)
+    configs = find_configs()
 
-            if sys.argv[1] == "install":
-                # install calls installers (always application specific, like Karp-S backend or resource repo)
-                if len(sys.argv) > 2:
-                    install(config, subcommand=sys.argv[2])
-                else:
-                    install(config)
+    if sys.argv[1] == "clean":
+        clean(configs)
+        return 0
 
-    except Exception:
-        print("error.")
-        log_dir = create_log_dir()
-        err_file = log_dir / (f"err_{datetime.now().strftime('%Y-%m-%d_%H%M%S')}.log")
-        with open(err_file, "w") as f:
-            traceback.print_exc(file=f)
-        return 1
+    do_run = sys.argv[1] == "run"
+    do_install = sys.argv[1] == "install"
 
-    print("done.")
+    kwargs = {}
+    if len(sys.argv) > 2:
+        kwargs["subcommand"] = sys.argv[2]
+
+    silent = False
+    if len(configs) > 1:
+        silent = True
+    for config_handle in configs:
+        karps_logging.setup_resource_logging(config_handle.workdir, silent=silent)
+        try:
+            config = load_config(config_handle)
+            if not silent:
+                print("Running", config.resource_id)
+            # run calls importers and exporters
+            if do_install:
+                install(config, **kwargs)
+            elif do_run:
+                run(config, **kwargs)
+            if silent:
+                # TODO inform user if there was warnings
+                print(f"{green_box()} {config.resource_id}\t success")
+        except Exception:
+            logging.getLogger("karpspipeline").error("Exception for resource", exc_info=True)
+            if silent:
+                print(f"{red_box()} {config_handle.workdir}\t fail")
+            else:
+                print("error.")
+
     return 0

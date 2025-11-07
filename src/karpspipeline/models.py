@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from pathlib import Path
 import re
 from pydantic import BaseModel, Field, RootModel, field_serializer, field_validator, computed_field
 
@@ -131,6 +132,7 @@ class PipelineConfig(BaseModel):
     # main field list, master order and configuration, new fields may be added or aliased to existing fields
     # entry_word is not in this list and is always the first element, wether used directly or as alias
     fields: list[ConfiguredField]
+    workdir: Path
 
     @property
     def modules(self) -> dict[str, object]:
