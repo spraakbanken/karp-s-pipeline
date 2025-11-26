@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from pathlib import Path
 import re
-from pydantic import BaseModel, Field, RootModel, field_serializer, field_validator, computed_field
+from pydantic import BaseModel, ConfigDict, Field, RootModel, field_serializer, field_validator, computed_field
 
 type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
@@ -117,8 +117,7 @@ class ExportConfig(BaseModel):
 
 
 class PipelineConfig(BaseModel):
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
     resource_id: str
     name: NonEmptyMultiLang
