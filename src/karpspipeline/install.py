@@ -1,4 +1,4 @@
-from karpspipeline import karps, sbxrepo
+from karpspipeline import karp, karps, sbxrepo
 from karpspipeline.models import PipelineConfig
 
 
@@ -17,6 +17,9 @@ def install(config: PipelineConfig, subcommand: str = "all") -> None:
         cmd_found = True
     if (install_all and "sbxrepo" in config.install) or subcommand == "sbxrepo":
         sbxrepo.install(config)
+        cmd_found = True
+    if (install_all and "karp" in config.install) or subcommand == "karp":
+        karp.install(config)
         cmd_found = True
 
     if not install_all and not cmd_found:

@@ -3,7 +3,7 @@ import importlib
 import logging
 from typing import Any, Callable, cast
 
-from karpspipeline import karps, sbxrepo
+from karpspipeline import karp, karps, sbxrepo
 
 from karpspipeline.common import ImportException, create_output_dir
 from karpspipeline.read import read_data
@@ -67,6 +67,9 @@ def run(config: PipelineConfig, subcommand: str = "all") -> None:
         cmd_found = True
     if (run_all and "sbxrepo" in config.export.default) or subcommand == "sbxrepo":
         sbxrepo.export(config, size)
+        cmd_found = True
+    if (run_all and "karp" in config.export.default) or subcommand == "karp":
+        karp.export(config, entry_schema)
         cmd_found = True
 
     # for each entry, do the needed tasks
