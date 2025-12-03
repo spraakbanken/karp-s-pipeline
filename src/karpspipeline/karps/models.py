@@ -38,3 +38,6 @@ class KarpsConfig(BaseModel):
     tags_description: dict[str, Tag] = {}
     # a link for this resource, maybe a home page or repository
     link: str
+    # give either primary or secondary, depending on which list is easiest to populate. the other list will be populated automatically
+    primary: list[str] = []
+    secondary: list[str] = []

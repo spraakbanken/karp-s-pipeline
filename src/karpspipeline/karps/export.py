@@ -1,5 +1,5 @@
 import time
-from typing import Generator, Iterator
+from typing import Generator, Iterable, Iterator, Mapping
 
 
 from karpspipeline.common import create_output_dir, get_output_dir
@@ -22,7 +22,7 @@ def create_karps_backend_config(
     with open(create_output_dir(pipeline_config.workdir) / "fields.yaml", "w") as fp:
         yaml.dump(fields, fp)
 
-    def order_fields(fields: Iterator[str]):
+    def order_fields(fields: Iterator[str]) -> Iterable[str]:
         # initialize main sort order
         order_map = {name: i for i, name in enumerate([field.name for field in pipeline_config.fields])}
 
@@ -35,16 +35,44 @@ def create_karps_backend_config(
         sorted_keys = sorted(fields, key=lambda x: order_map[x])
         return sorted_keys
 
+    def make_field_config(fields: Iterable[str]) -> Iterator[Mapping[str, object]]:
+        """
+        creates the final format for a field in karps config
+        if only one of karps.primary/secondary is given:
+            for each key in karps_config.primary, add primary: true and primary: false to the rest
+            for each key in karps_config.secondary, add primary: false and primary: true to the rest
+        else:
+            add primary: true/false as expected and raise error if a field is not in either
+        """
+        primary = karps_config.primary
+        secondary = karps_config.secondary
+        for field in fields:
+            if primary and secondary:
+                if not (field in primary or field in secondary):
+                    raise Exception(
+                        f'Karps: field {field} has to be in either primary or secondary. Use "not {field}" in export.fields to exclude field or update primary/secondary.'
+                    )
+                is_primary = field in primary
+            elif karps_config.primary:
+                is_primary = field in primary
+            elif karps_config.secondary:
+                is_primary = field not in secondary
+            else:
+                # if primary/secondary is not configured, all fields are primary
+                is_primary = True
+            yield {"name": field, "primary": is_primary}
+
+    final_field_list = order_fields(iter(entry_schema.keys()))
     backend_config = {
         "resource_id": pipeline_config.resource_id,
         "label": pipeline_config.name.model_dump(),
-        "fields": order_fields(iter(entry_schema.keys())),
+        "fields": list(make_field_config(final_field_list)),
         "entry_word": karps_config.entry_word.model_dump(),
         "size": size,
         "link": karps_config.link,
         "updated": int(time.time()),
     }
-    if karps_config.entry_word.field not in backend_config["fields"]:
+    if karps_config.entry_word.field not in final_field_list:
         raise ImportError(f"entry_word: {karps_config.entry_word.field}, but field is not available in the resource")
     if karps_config.tags:
         backend_config["tags"] = karps_config.tags
