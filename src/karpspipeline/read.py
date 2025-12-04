@@ -19,7 +19,6 @@ def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> l
 
         # find anchor - find the next elment in keys that are already in
         source_order_from_current = source_order[source_place:]
-        inserted = False
         for future_key in new_keys[i:]:
             if future_key in source_order_from_current:
                 # but get the index  from source_order
@@ -27,10 +26,8 @@ def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> l
                 # splice in the new element immediately before anchor
                 source_order.insert(anchor_idx, key)
                 source_place = anchor_idx
-                inserted = True
                 break
-
-        if not inserted:
+        else:
             # anchor not found - add
             source_order.append(key)
     return source_order
