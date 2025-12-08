@@ -91,9 +91,11 @@ def _check(key: str, field: InferredField, values: object) -> None:
         values = [values]
     field_type = field.type
     for value in values:
-        expected_type_name = type_lookup[type(value)]
-        if field_type != expected_type_name:
-            raise ImportException(f'Mismatch, field: "{key}"')
+        actual_type_name = type_lookup[type(value)]
+
+        # it is fine to first infer float and then seeing integer values
+        if not (actual_type_name == "integer" and field_type == "float") and field_type != actual_type_name:
+            raise ImportException(f'Mismatch, field: "{key}". Was {actual_type_name}, expected {field_type}.')
 
 
 def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
