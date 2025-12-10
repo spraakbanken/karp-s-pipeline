@@ -9,8 +9,7 @@ help:
 
 .PHONY: install
 install:
-	pip install --upgrade pip
-	pip install -e .[dev]
+	uv sync
 
 .PHONY: fmt
 fmt:
