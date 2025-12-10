@@ -72,9 +72,15 @@ def cli():
         karps_logging.setup_resource_logging(config_handle.workdir, silent=silent)
         try:
             config = load_config(config_handle)
-            if not silent:
-                print("Running", config.resource_id)
             # run calls importers and exporters
+            if not silent:
+                if do_run:
+                    task_output = "Running"
+                elif do_install:
+                    task_output = "Installing"
+                else:
+                    task_output = "Unknown action"
+                print(task_output, config.resource_id)
             if do_install:
                 install(config, **kwargs)
             elif do_run:
