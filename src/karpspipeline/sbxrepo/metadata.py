@@ -25,7 +25,8 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     metadata["name"] = pipeline_config.name.model_dump(exclude_none=True)
     if not pipeline_config.description:
         raise RuntimeError("'description' is mandatory when generating SBX metadata.")
-    metadata["short_description"] = pipeline_config.description.model_dump(exclude_none=True)
+    # metadata repo also supports short_description, but we use HTML in our description and it is not allowed in metadata
+    metadata["description"] = pipeline_config.description.model_dump(exclude_none=True)
 
     # add derived values to target
     date_str = _get_current_date_string()
