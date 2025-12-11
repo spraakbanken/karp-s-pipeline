@@ -1,7 +1,7 @@
 from karpspipeline.models import InferredField
 
 
-PATH = "https://spraakbanken.gu.se/saolhist/bildfiler/"
+PATH = "https://spraakbanken.gu.se/resurser/data/karp/saol-faksimil/"
 
 
 def page_to_str(page, length=4):
