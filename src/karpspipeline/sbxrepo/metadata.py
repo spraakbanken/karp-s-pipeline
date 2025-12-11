@@ -35,14 +35,17 @@ def _create_sb_metadata_file(pipeline_config: PipelineConfig, size):
     if not sbmetadata_config.metadata.updated:
         metadata["updated"] = date_str
 
-    if not sbmetadata_config.metadata.downloads:
-        metadata["downloads"] = [
-            {
-                "url": sbmetadata_config.data.download_url_template.format(resource_id=pipeline_config.resource_id),
-                "license": sbmetadata_config.metadata.license,
-                "format": "jsonl",
-            }
-        ]
+    if sbmetadata_config.metadata.downloads:
+        metadata["downloads"] = list(sbmetadata_config.metadata.downloads)
+    else:
+        metadata["downloads"] = []
+    metadata["downloads"].append(
+        {
+            "url": sbmetadata_config.data.download_url_template.format(resource_id=pipeline_config.resource_id),
+            "license": sbmetadata_config.metadata.license,
+            "format": "jsonl",
+        }
+    )
     if not sbmetadata_config.metadata.interfaces:
         metadata["interfaces"] = [
             {

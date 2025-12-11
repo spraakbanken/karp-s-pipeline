@@ -16,7 +16,7 @@ class Metadata(BaseModel):
     schema_: str = Field(..., alias="schema")
     license: str = "CC-BY-4.0"
     # can probably be set automatcially
-    downloads: Sequence[str] = ()
+    downloads: Sequence[dict[str, str]] = ()
     interfaces: Sequence[str] = ()
     created: str | None = Field(None, pattern=DATE_PATTERN)
     updated: str | None = Field(None, pattern=DATE_PATTERN)
