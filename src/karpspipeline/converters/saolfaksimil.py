@@ -16,7 +16,7 @@ templates = {
     "saol8-faksimil": lambda page_num: f"SAOL08/SAOL08_{page_to_str(page_num)}.png",
     "saol9-faksimil": lambda page_num: f"SAOL09/SAOL09_{page_to_str(page_num)}.png",
     "saol10-faksimil": lambda page_num: f"SAOL10/SAOL10_{page_to_str(page_num)}.png",
-    "saol11-faksimil": lambda page_num: f"SAOL11/SAOL11_{page_to_str(page_num)}.png",
+    "saol11-faksimil": lambda page_num: f"SAOL11/SAOL11_{page_to_str(page_num, length=5)}.png",
     "saol12-faksimil": lambda page_num: f"SAOL12/SAOL12_{page_to_str(page_num)}.png",
     "saol13-faksimil": lambda page_num: f"SAOL13/SAOL13_{page_to_str(page_num)}.png",
     # 5 numbers here
