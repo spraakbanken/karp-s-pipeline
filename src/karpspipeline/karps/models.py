@@ -30,6 +30,10 @@ class KarpsConfig(BaseModel):
     db_database: str
     db_user: str
     db_password: str
+    # which charset to use in MariaDB
+    db_charset: str = "utf8mb4"
+    # which MariaDB collation to use
+    db_collation: str = "utf8mb4_swedish_ci"
     # which field to use as entry_word
     entry_word: EntryWord
     # tags that this resource belong to

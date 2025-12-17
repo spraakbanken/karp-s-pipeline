@@ -123,8 +123,8 @@ def create_karps_sql(
                         __parent_id INT,
                         FOREIGN KEY (__parent_id) REFERENCES `{table_name}`(__id)
                     )
-                    CHARACTER SET utf8mb4
-                    COLLATE utf8mb4_swedish_ci;
+                    CHARACTER SET {karps_config.db_charset}
+                    COLLATE {karps_config.db_collation};
                     """)
                     if field.type == "text" and field.extra["length"] <= VARCHAR_CUTOFF:
                         indices.append(
@@ -157,8 +157,8 @@ def create_karps_sql(
             __id INT PRIMARY KEY,
             {",\n".join(fields)}
         )
-        CHARACTER SET utf8mb4
-        COLLATE utf8mb4_swedish_ci;
+        CHARACTER SET {karps_config.db_charset}
+        COLLATE {karps_config.db_collation};
         """
             + "".join(tables)
         ), "\n".join(indices) + "\n"
