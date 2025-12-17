@@ -2,6 +2,7 @@ import os
 import sys
 from typing import TYPE_CHECKING
 
+from karpspipeline.common import ImportException, InstallException
 from karpspipeline.util.terminal import bold, green_box, red_box
 
 
@@ -88,11 +89,12 @@ def cli():
             if silent:
                 # TODO inform user if there was warnings
                 print(f"{green_box()} {config.resource_id}\t success")
-        except Exception:
-            logging.getLogger("karpspipeline").error("Exception for resource", exc_info=True)
+        except Exception as e:
+            if isinstance(e, InstallException) or isinstance(e, ImportException):
+                logging.getLogger("karpspipeline").error(f"Exception for resource: {e.args[0]}")
+            else:
+                logging.getLogger("karpspipeline").error("Exception for resource", exc_info=True)
             if silent:
                 print(f"{red_box()} {config_handle.workdir}\t fail")
-            else:
-                print("error.")
 
     return 0
