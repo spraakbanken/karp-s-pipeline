@@ -1,7 +1,9 @@
 from collections.abc import Iterator
 import importlib
 import logging
+import sys
 from typing import Any, Callable, cast
+import unicodedata
 
 from karpspipeline import karp, karps, sbxrepo
 
@@ -165,6 +167,25 @@ def _import_resource(
     return entries
 
 
+def _clean_text(text: str) -> str:
+    """
+    Removes control characters, formatting characters, unassigned characters and makes all spaces into "normal" space
+    """
+
+    def inner(text) -> Iterator[str]:
+        for c in text:
+            cat = unicodedata.category(c)
+            # remove all control characters (Cc), formatting characters (Cf), unassigned characters(Cn)
+            if cat not in {"Cc", "Cf", "Cn"}:
+                if cat == "Zs":
+                    # normalize space separators
+                    yield " "
+                else:
+                    yield c
+
+    return "".join(inner(text))
+
+
 def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Callable[[Entry], Entry]:
     """
     Check if config contains any renames or conversions
@@ -213,10 +234,13 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
 
     def convert(entry: Entry) -> Entry:
         new_entry = {}
+
+        # initialize data
         for key in entry_schema.keys():
             if key in entry:
                 new_entry[key] = entry[key]
 
+        # convert or rename fields
         for field in converted_fields:
             if not field.exclude:
                 if field.name == "*":
@@ -224,6 +248,15 @@ def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Ca
                 else:
                     val = entry[field.name]
                     new_entry[field.target] = _convert_value(field.converter, val)
+
+        # clean up all text fields
+        for key in entry_schema.keys():
+            if entry_schema[key].type == "text" and key in new_entry:
+                if not entry_schema[key].collection:
+                    new_entry[key] = _clean_text(new_entry[key])
+                else:
+                    # this also causes all None to be []
+                    new_entry[key] = [_clean_text(text) for text in new_entry[key] or []]
 
         return new_entry
 
