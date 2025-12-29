@@ -3,11 +3,11 @@ import shutil
 import subprocess
 
 from karpspipeline.models import PipelineConfig
-from karpspipeline.sbxrepo.models import SBXRepoConfig
+from karpspipeline.modules.sbxrepo.models import SBXRepoConfig
 
 from karpspipeline.common import get_output_dir
 from karpspipeline.util.git import GitRepo
-from karpspipeline.sbxrepo.common import _get_metadata_file
+from karpspipeline.modules.sbxrepo.common import _get_metadata_file
 
 
 def _upload_data(pipeline_config: PipelineConfig, sbmetadata_config: SBXRepoConfig):

@@ -1,264 +1,62 @@
-from collections.abc import Iterator
 import importlib
 import logging
-from typing import Any, Callable, cast
-import unicodedata
+from typing import Callable
 
-from karpspipeline import karp, karps, sbxrepo
-
-from karpspipeline.common import ImportException, create_output_dir
+from karpspipeline.common import ImportException
 from karpspipeline.read import read_data
-from karpspipeline.util import json
-from karpspipeline.util.terminal import bold
-from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
+
+from karpspipeline.models import Entry, PipelineConfig
 
 
 logger = logging.getLogger(__name__)
 
-type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
-
 
 def run(config: PipelineConfig, subcommand: str = "all") -> None:
-    # pre-import tasks, invoke conversions to know which fields *will* be there
-    # TODO collect number of items
-    entry_schema, source_order, [size] = _pre_import_resource(config)
-
-    # generator for entries
-    entries = _import_resource(config, entry_schema, source_order)
-
-    # callables added to tasks will be called for each entry
-    tasks: list[Callable[[Entry], Entry]] = []
-
-    # modifies entry_schema based on config and returns modification task for entries
-    entry_converter = get_entry_converter(config, entry_schema)
-    # add task to include, exclude, rename or update fields in enries (based on export.fields)
-    tasks.append(entry_converter)
-
-    logger.info("Using entry schema: " + json.dumps(entry_schema))
-
-    run_all = False
     if subcommand == "all":
-        run_all = True
-    cmd_found = False
+        invoked_cmds = config.export.default
+    else:
+        invoked_cmds = [subcommand]
 
-    if run_all or subcommand == "dump":
+    resolved_cmds = []
+    mods = {}
 
-        def json_dump():
-            with open(create_output_dir(config.workdir) / f"{config.resource_id}.jsonl", "w") as fp:
-                while True:
-                    entry = yield
-                    if not entry:
-                        break
-                    fp.write(json.dumps(entry) + "\n")
+    def resolve(invoked_cmds):
+        """
+        Traverses the dependency tree and adds dependencies to resolved_cmds in the order they need to run
+        """
+        for cmd in invoked_cmds:
+            try:
+                mod = importlib.import_module("karpspipeline.modules." + cmd)
+                mods[cmd] = mod
+            except ModuleNotFoundError as e:
+                raise ImportException(f"{cmd} not found") from e
+            resolve(mod.dependencies)
+            if cmd not in resolved_cmds:
+                resolved_cmds.append(cmd)
 
-        gen = json_dump()
-        next(gen)
+    resolve(invoked_cmds)
 
-        def task(entry: Entry, /) -> Entry:
-            gen.send(entry)
-            return entry
+    entry_tasks: list[Callable[[Entry], Entry]] = []
+    module_data = {}
+    for cmd in resolved_cmds:
+        mod = mods[cmd]
+        dependencies = mod.dependencies
+        for dependency in dependencies:
+            if dependency not in module_data:
+                # fetch the result from cmd's dependency
+                if hasattr(mods[dependency], "load"):
+                    module_data[dependency] = mods[dependency].load(config)
+                else:
+                    # add dependency so we don't have to look for the load method again
+                    module_data[dependency] = None
+        new_tasks = mod.export(config, module_data)
 
-        # add task for dumping data as jsonl (with all modifications)
-        tasks.append(task)
-        cmd_found = True
-
-    if (run_all and "karps" in config.export.default) or subcommand == "karps":
-        new_tasks = karps.export(config, entry_schema, source_order, size)
-        tasks.extend(new_tasks)
-        cmd_found = True
-    if (run_all and "sbxrepo" in config.export.default) or subcommand == "sbxrepo":
-        sbxrepo.export(config, size)
-        cmd_found = True
-    if (run_all and "karp" in config.export.default) or subcommand == "karp":
-        karp.export(config, entry_schema)
-        cmd_found = True
+        # callables added to entry_tasks will be called for each entry
+        entry_tasks.extend(new_tasks)
 
     # for each entry, do the needed tasks
-    for entry in entries:
+    # TODO read_data actually loads the entire file, but here we should read one line at a time
+    for entry in read_data(config)[2]:
         updated_entry = entry
-        for task in tasks:
+        for task in entry_tasks:
             updated_entry = task(updated_entry)
-
-    if not cmd_found:
-        raise ImportException(f"Subcommand '{subcommand}' not available.")
-
-
-def _check(key: str, field: InferredField, values: object) -> None:
-    if values is None:
-        return
-    if bool(field.collection) != isinstance(values, list):
-        raise ImportException(f'Mismatch, field: "{key}"')
-    if not isinstance(values, list):
-        values = [values]
-    field_type = field.type
-    for value in values:
-        actual_type_name = type_lookup[type(value)]
-
-        # it is fine to first infer float and then seeing integer values
-        if not (actual_type_name == "integer" and field_type == "float") and field_type != actual_type_name:
-            raise ImportException(f'Mismatch, field: "{key}". Was {actual_type_name}, expected {field_type}.')
-
-
-def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
-    def _add_max_length(field: InferredField):
-        if field.type == "text":
-            if field.collection:
-                if values:
-                    field_maxlen = max((len(value) for value in values))
-                else:
-                    field_maxlen = 0
-            else:
-                field_maxlen = len(cast(str, values))
-            field.extra["length"] = max(cast(int, field.extra.get("length", 0)), field_maxlen)
-
-    schema = {}
-    for entry in entries:
-        for key in entry:
-            values = entry[key]
-            if key in schema:
-                _check(key, schema[key], values)
-            else:
-                # not previously seen field
-                field = {}
-                if isinstance(values, list):
-                    field["collection"] = True
-                    # check that all values have the same type by using type and counting
-                    x = [type(value) for value in values]
-                    if x.count(x[0]) != len(x):
-                        raise ImportException("Not all values in collection have the same type")
-                    typ = x[0]
-                else:
-                    typ = type(values)
-                if values is None:
-                    # defer type inference until a concrete value occurs
-                    continue
-                field["type"] = type_lookup[typ]
-                logger.debug(f"Adding {key} = {json.dumps(field)}")
-                schema[key] = InferredField.model_validate(field)
-            _add_max_length(schema[key])
-    return schema
-
-
-def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[str], list[int]]:
-    """
-    Checks that the source-files contain entries adhering to resource_config
-    Moves the file to output/<resource_id>.jsonl
-    If the file is already there, do nothing
-    """
-    files = list(pipeline_config.workdir.glob("source/*"))
-    if len(files) != 1:
-        # we only support one input file
-        logger.warning(f"pipeline supports {bold('one')} input file in source/")
-    else:
-        logger.info(f"Reading source file: {files[0]}")
-
-    source_order, size, entries = read_data(pipeline_config)
-
-    # generate schema from entries - _create_field will exaust the generator and make size updated
-    fields = _create_fields(entries)
-    return (fields, source_order, size)
-
-
-def _import_resource(
-    pipeline_config: PipelineConfig, entry_schema: EntrySchema, source_order: list[str]
-) -> Iterator[Entry]:
-    _, _, entries = read_data(pipeline_config)
-    return entries
-
-
-def _clean_text(text: str) -> str:
-    """
-    Removes control characters, formatting characters, unassigned characters and makes all spaces into "normal" space
-    """
-
-    def inner(text) -> Iterator[str]:
-        for c in text:
-            cat = unicodedata.category(c)
-            if c == "\n":
-                yield c
-            # remove all control characters (Cc), formatting characters (Cf), unassigned characters(Cn)
-            elif cat not in {"Cc", "Cf", "Cn"}:
-                if cat == "Zs":
-                    # normalize space separators
-                    yield " "
-                else:
-                    yield c
-
-    return "".join(inner(text))
-
-
-def get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Callable[[Entry], Entry]:
-    """
-    Check if config contains any renames or conversions
-    Update the entry schema and each entry with this information
-    """
-
-    def _get_converter(converter: str) -> dict[str, Callable[[object], object]]:
-        [module, func] = converter.split(".")
-        mod = importlib.import_module("karpspipeline.converters." + module)
-        func_obj = getattr(mod, func)
-        update_schema = getattr(mod, func + "_update_schema")
-        return {"update_schema": update_schema, "convert": func_obj}
-
-    add_all = False
-    converted_fields = []
-    converters = {}
-    if len(config.export.fields) == 0:
-        # add all the fields from the source to the target if there are no field settings
-        add_all = True
-    for field in config.export.fields:
-        if field.root == "...":
-            add_all = True
-        else:
-            converted_fields.append(field)
-    if not add_all:
-        entry_schema.clear()
-    for field in converted_fields:
-        if field.exclude:
-            entry_schema.pop(field.name, None)
-        else:
-            if field.name == "*":
-                # the converter must set the schema, placeholder value
-                entry_schema[field.target] = InferredField(type="str")
-            else:
-                # TODO here we copy the schema from source field, but length may be different
-                entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
-        # pre-import each converter
-        if field.converter:
-            converters[field.converter] = _get_converter(field.converter)
-            entry_schema[field.target] = converters[field.converter]["update_schema"](entry_schema[field.target])
-
-    def _convert_value(converter: str | None, val: Any) -> Any:
-        if converter:
-            return converters[converter]["convert"](config.resource_id, val)
-        return val
-
-    def convert(entry: Entry) -> Entry:
-        new_entry = {}
-
-        # initialize data
-        for key in entry_schema.keys():
-            if key in entry:
-                new_entry[key] = entry[key]
-
-        # convert or rename fields
-        for field in converted_fields:
-            if not field.exclude:
-                if field.name == "*":
-                    new_entry[field.target] = _convert_value(field.converter, entry)
-                else:
-                    val = entry[field.name]
-                    new_entry[field.target] = _convert_value(field.converter, val)
-
-        # clean up all text fields
-        for key in entry_schema.keys():
-            if entry_schema[key].type == "text" and key in new_entry:
-                if not entry_schema[key].collection:
-                    new_entry[key] = _clean_text(new_entry[key])
-                else:
-                    # this also causes all None to be []
-                    new_entry[key] = [_clean_text(text) for text in new_entry[key] or []]
-
-        return new_entry
-
-    return convert

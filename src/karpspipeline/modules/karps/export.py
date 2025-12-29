@@ -3,7 +3,7 @@ from typing import Generator, Iterable, Iterator, Mapping
 
 
 from karpspipeline.common import create_output_dir, get_output_dir
-from karpspipeline.karps.models import KarpsConfig
+from karpspipeline.modules.karps.models import KarpsConfig
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig, InferredField
 from karpspipeline.util import yaml
 
@@ -13,6 +13,7 @@ VARCHAR_CUTOFF = 200  # if a field contains values larger than this, use TEXT ty
 def create_karps_backend_config(
     pipeline_config: PipelineConfig,
     karps_config: KarpsConfig,
+    name: dict[str, str],
     entry_schema: EntrySchema,
     source_order: list[str],
     size: int,
@@ -65,7 +66,7 @@ def create_karps_backend_config(
     final_field_list = order_fields(iter(entry_schema.keys()))
     backend_config = {
         "resource_id": pipeline_config.resource_id,
-        "label": pipeline_config.name.model_dump(),
+        "label": name or pipeline_config.resource_id,
         "fields": list(make_field_config(final_field_list)),
         "entry_word": karps_config.entry_word.model_dump(),
         "size": size,

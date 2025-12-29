@@ -1,23 +1,31 @@
 import logging
 import subprocess
 from typing import Callable, cast
-from karpspipeline.common import create_output_dir, get_output_dir
+from karpspipeline.common import ImportException, create_output_dir, get_output_dir
 from karpspipeline.models import Entry, EntrySchema, PipelineConfig
 from karpspipeline.util import yaml
 
 logger = logging.getLogger("karp")
 
+# generate Karp backend configuration and SQL, could be broken up into two tasks
 
-def export(
-    config: PipelineConfig,
-    entry_schema: EntrySchema,
-) -> list[Callable[[Entry], Entry]]:
-    create_karp_backend_config(config, entry_schema)
+
+__all__ = ["export", "install", "dependencies"]
+
+dependencies = ["jsonl", "sbxmetadata"]
+
+
+def export(config: PipelineConfig, module_data) -> list[Callable[[Entry], Entry]]:
+    entry_schema: EntrySchema = module_data["schema"]["entry_schema"]
+    name = module_data["sbxmetadata"].get("name") or config.name and config.name.model_dump()
+    if not name:
+        raise ImportException("karp: 'name' missing")
+    _create_karp_backend_config(config, entry_schema, name)
     return []
 
 
-def create_karp_backend_config(config: PipelineConfig, entry_schema: EntrySchema):
-    karp_config = {"resource_id": config.resource_id, "resource_name": config.name.model_dump()["swe"], "fields": {}}
+def _create_karp_backend_config(config: PipelineConfig, entry_schema: EntrySchema, name: dict[str, str]):
+    karp_config = {"resource_id": config.resource_id, "resource_name": name["swe"], "fields": {}}
     for field_name, field in entry_schema.items():
         dumped = field.model_dump(exclude_defaults=True, exclude_unset=True)
         if field.type == "text":

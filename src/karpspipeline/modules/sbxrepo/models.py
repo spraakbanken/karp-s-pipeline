@@ -7,15 +7,8 @@ from karpspipeline.models import NonEmptyMultiLang
 DATE_PATTERN: str = r"^(\d{4}-\d{2}-\d{2}|)$"
 
 
-class Metadata(BaseModel):
-    class Config:
-        extra = "forbid"
-
-    # should not be copied to metadata file
-    yaml_export_path: str
-    schema_: str = Field(..., alias="schema")
-    license: str = "CC-BY-4.0"
-    # can probably be set automatcially
+class MetadataAttributes(BaseModel):
+    # these will *overwrite*  the values from the metadata API
     downloads: Sequence[dict[str, str]] = ()
     interfaces: Sequence[str] = ()
     created: str | None = Field(None, pattern=DATE_PATTERN)
@@ -34,6 +27,19 @@ class Metadata(BaseModel):
     other_references: Sequence[str] = ()
     intended_uses: NonEmptyMultiLang | None = None
     language_codes: list[str] = ["swe"]
+
+
+class Metadata(MetadataAttributes):
+    class Config:
+        extra = "forbid"
+
+    # should not be copied to metadata file
+    yaml_export_path: str
+    schema_: str = Field(..., alias="schema")
+    license: str = "CC-BY-4.0"
+
+    # fallbacks are used if a value is missing
+    fallbacks: MetadataAttributes | None = None
 
 
 class Data(BaseModel):

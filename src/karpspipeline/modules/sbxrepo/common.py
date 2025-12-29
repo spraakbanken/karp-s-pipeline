@@ -3,7 +3,7 @@ from pathlib import Path
 
 from karpspipeline.common import create_output_dir
 from karpspipeline.models import PipelineConfig
-from karpspipeline.sbxrepo.models import SBXRepoConfig
+from karpspipeline.modules.sbxrepo.models import SBXRepoConfig
 
 
 def _get_config(pipeline_config: PipelineConfig):

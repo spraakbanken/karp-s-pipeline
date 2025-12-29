@@ -10,7 +10,7 @@ import mysql.connector
 from mysql.connector.abstracts import MySQLCursorAbstract
 
 from karpspipeline.common import Map, get_output_dir, InstallException
-from karpspipeline.karps.models import KarpsConfig
+from karpspipeline.modules.karps.models import KarpsConfig
 from karpspipeline.models import PipelineConfig
 from karpspipeline.util import yaml
 from karpspipeline.util.git import GitRepo

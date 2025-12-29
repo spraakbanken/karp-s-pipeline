@@ -120,7 +120,7 @@ class PipelineConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
     resource_id: str
-    name: NonEmptyMultiLang
+    name: MultiLang | None = None
     description: MultiLang | None = None
     # the elements of type object will be handled by the exporters models
     export: ExportConfig

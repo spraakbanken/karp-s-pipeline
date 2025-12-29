@@ -10,24 +10,7 @@ from karpspipeline.util import yaml
 
 logger = logging.getLogger(__name__)
 
-
-def _merge_configs(orig_parent_config: Map | None, child_config: Map) -> Map:
-    """
-    Overwrites main_config with values from resource_config
-    """
-    if not orig_parent_config:
-        return child_config
-    parent_config = copy.deepcopy(orig_parent_config)
-    for key, value in child_config.items():
-        main_val = parent_config.get(key)
-        if value is None:
-            continue
-        elif main_val and isinstance(main_val, dict) and isinstance(value, dict):
-            tmp = _merge_configs(main_val, value)
-            parent_config[key] = tmp
-        else:
-            parent_config[key] = value
-    return parent_config
+__all__ = ["ConfigHandle", "load_config", "find_configs"]
 
 
 @dataclass
@@ -40,6 +23,10 @@ def load_config(config_handle) -> PipelineConfig:
     config_dict = config_handle.config_dict
     config_dict["workdir"] = config_handle.workdir
     return PipelineConfig.model_validate(config_dict)
+
+
+def find_configs() -> list[ConfigHandle]:
+    return list(_find_configs())
 
 
 def _find_configs() -> Iterator[ConfigHandle]:
@@ -95,5 +82,20 @@ def _find_configs() -> Iterator[ConfigHandle]:
         yield ConfigHandle(workdir=start_path, config_dict=parent_config)
 
 
-def find_configs() -> list[ConfigHandle]:
-    return list(_find_configs())
+def _merge_configs(orig_parent_config: Map | None, child_config: Map) -> Map:
+    """
+    Overwrites main_config with values from resource_config
+    """
+    if not orig_parent_config:
+        return child_config
+    parent_config = copy.deepcopy(orig_parent_config)
+    for key, value in child_config.items():
+        main_val = parent_config.get(key)
+        if value is None:
+            continue
+        elif main_val and isinstance(main_val, dict) and isinstance(value, dict):
+            tmp = _merge_configs(main_val, value)
+            parent_config[key] = tmp
+        else:
+            parent_config[key] = value
+    return parent_config
