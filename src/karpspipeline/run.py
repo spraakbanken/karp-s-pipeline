@@ -174,8 +174,10 @@ def _clean_text(text: str) -> str:
     def inner(text) -> Iterator[str]:
         for c in text:
             cat = unicodedata.category(c)
+            if c == "\n":
+                yield c
             # remove all control characters (Cc), formatting characters (Cf), unassigned characters(Cn)
-            if cat not in {"Cc", "Cf", "Cn"}:
+            elif cat not in {"Cc", "Cf", "Cn"}:
                 if cat == "Zs":
                     # normalize space separators
                     yield " "
