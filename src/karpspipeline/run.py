@@ -1,7 +1,6 @@
 from collections.abc import Iterator
 import importlib
 import logging
-import sys
 from typing import Any, Callable, cast
 import unicodedata
 
