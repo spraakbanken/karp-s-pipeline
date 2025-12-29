@@ -158,6 +158,7 @@ _isof_nyord_to_ud = {
     "substantiv, fras/uttryck": "NOUN",
     "substantiv, namn/eponym": "NOUN",
     "namn/eponym, substantiv": "NOUN",
+    "interjektion": "INTJ",
     # några av dessa passar nog bättre som PROPN (proper noun)
     "förkortning": "NOUN",
     "adjektiv": "ADJ",
