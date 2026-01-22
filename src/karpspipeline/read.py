@@ -49,14 +49,14 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
             reader = csv.reader(fp)
         else:
             reader = csv.reader(fp, dialect="excel-tab")
-        source_order = next(reader, None) or []
+        columns = next(reader, None) or []
         import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
         # type information for parsing values
         cast_fields: list[dict[str, str]] = import_settings["csv"]["cast_fields"]
 
         def get_entries() -> Iterator[Entry]:
             for row in reader:
-                entry: dict[str, str | int | float] = dict(zip(source_order, row))
+                entry: dict[str, str | int | float] = dict(zip(columns, row))
                 # parse values
                 for field in cast_fields:
                     if field["type"] == "int":
@@ -69,7 +69,7 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
                 yield entry
             fp.close()
 
-        return source_order, size, get_entries()
+        return columns, size, get_entries()
     else:
         jsonl_files = pipeline_config.workdir.glob("source/*jsonl")
         fp = open(next(jsonl_files))
