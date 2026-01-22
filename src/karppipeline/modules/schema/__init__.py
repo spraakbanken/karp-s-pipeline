@@ -17,6 +17,7 @@ __all__ = ["export", "dependencies"]
 
 # generate schema, source_order and size, TODO sbxmetadata should be an optional dependency
 dependencies = ["sbxmetadata"]
+type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
 
 
 def export(config, _):
@@ -53,9 +54,8 @@ def _get_data_path(config) -> Path:
 
 def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, list[str], list[int]]:
     """
-    Checks that the source-files contain entries adhering to resource_config
-    Moves the file to output/<resource_id>.jsonl
-    If the file is already there, do nothing
+    reads source file and generates a schema, return (source order, size of resource, schema)
+    source order is roughly the order that fields occur in source file
     """
     files = list(pipeline_config.workdir.glob("source/*"))
     if len(files) != 1:
@@ -71,63 +71,84 @@ def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, 
     return (fields, source_order, size)
 
 
-type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float", dict: "object"}
-
-
-def _check(key: str, field: InferredField, values: object) -> None:
-    if values is None:
-        return
-    if bool(field.collection) != isinstance(values, list):
-        raise ImportException(f'Mismatch, field: "{key}"')
-    if not isinstance(values, list):
-        values = [values]
-    field_type = field.type
-    for value in values:
-        actual_type_name = type_lookup[type(value)]
-
-        # it is fine to first infer float and then seeing integer values
-        if not (actual_type_name == "integer" and field_type == "float") and field_type != actual_type_name:
-            raise ImportException(f'Mismatch, field: "{key}". Was {actual_type_name}, expected {field_type}.')
-
-
 def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
-    def _add_max_length(field: InferredField):
-        if field.type == "text":
-            if field.collection:
-                if values:
-                    field_maxlen = max((len(value) for value in values))
-                else:
-                    field_maxlen = 0
-            else:
-                field_maxlen = len(cast(str, values))
-            field.extra["length"] = max(cast(int, field.extra.get("length", 0)), field_maxlen)
-
+    """
+    Goes through the entries and each key in the entries and populates schema
+    """
     schema = {}
-    for entry in entries:
+    for idx, entry in enumerate(entries):
         for key in entry:
             values = entry[key]
-            if key in schema:
-                _check(key, schema[key], values)
-            else:
-                # not previously seen field
-                field = {}
-                if isinstance(values, list):
-                    field["collection"] = True
-                    # check that all values have the same type by using type and counting
-                    x = [type(value) for value in values]
-                    if x.count(x[0]) != len(x):
-                        raise ImportException("Not all values in collection have the same type")
-                    typ = x[0]
-                else:
-                    typ = type(values)
-                if values is None:
-                    # defer type inference until a concrete value occurs
-                    continue
-                field["type"] = type_lookup[typ]
-                logger.debug(f"Adding {key} = {json.dumps(field)}")
-                schema[key] = InferredField(**field)
-            _add_max_length(schema[key])
+            try:
+                _check_or_create_field(schema, key, values)
+            except ImportException as e:
+                raise ImportException(f"Error for entry on row: {idx + 1}: " + e.args[0])
     return schema
+
+
+def _check_or_create_field(schema, key, values):
+    """
+    Called for each key and value in each entry
+
+    For unknown fields, initializes the field, for known fields, check that the given values
+    match the field.
+    """
+    field = schema.get(key)
+    collection = False
+    if not isinstance(values, list):
+        values = (values,)
+    elif field and not field.collection:
+        raise ImportException(f'Mismatch, field: "{key}"')
+    else:
+        collection = True
+    for value in values:
+        if not isinstance(value, dict):
+            value = ((key, value, field),)
+        elif field and not field.type == "table":
+            raise ImportException(f'Mismatch, field: "{key}"')
+        else:
+            # sub-fields do not have collection: true although they could be seen as such...
+            collection = False
+            if not field:
+                # first time this table field is found
+                fields = {}
+                field = InferredField(type="table", collection=True, name=key, fields=fields)
+                schema[key] = field
+
+            # use fields from the parent field as schema, will add sub-fields to the correct level
+            schema = field.fields
+            value = [(key, val, schema.get(key)) for (key, val) in value.items()]
+
+        for inner_key, inner_value, inner_field in value:
+            if inner_value is None:
+                break
+            if isinstance(inner_value, list) or isinstance(inner_value, dict):
+                raise ImportException("Level of nesting not allowed.")
+            if inner_field:
+                _check_type(inner_key, inner_field, inner_value)
+            else:
+                # not previously seen field, initializes type and name
+                inner_field = InferredField(type=type_lookup[type(inner_value)], name=inner_key)
+                inner_field.collection = collection
+                schema[inner_key] = inner_field
+
+            if inner_field and inner_field.type == "text":
+                _add_max_length(inner_field, inner_value)
+
+
+def _check_type(key: str, field: InferredField, value: str | float | int | bool) -> None:
+    field_type = field.type
+    actual_type_name = type_lookup[type(value)]
+    # it is fine to first infer float and then seeing integer values
+    if not (actual_type_name == "integer" and field_type == "float") and field_type != actual_type_name:
+        raise ImportException(f'Mismatch, field: "{key}". Was {actual_type_name}, expected {field_type}.')
+
+
+def _add_max_length(field: InferredField, value: str):
+    """
+    Sets or update the longest value seen for this field, only works for text fields
+    """
+    field.extra["length"] = max(cast(int, field.extra.get("length", 0)), len(value))
 
 
 def _get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> Callable[[Entry], Entry]:
@@ -162,10 +183,12 @@ def _get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> C
         else:
             if field.name == "*":
                 # the converter must set the schema, placeholder value
-                entry_schema[field.target] = InferredField(type="str")
+                entry_schema[field.target] = InferredField(name=field.target, type="str")
             else:
                 # TODO here we copy the schema from source field, but length may be different
-                entry_schema[field.target] = entry_schema[field.name].copy()
+                field_copy = entry_schema[field.name].copy()
+                field_copy.name = field.target
+                entry_schema[field.target] = field_copy
         # pre-import each converter
         if field.converter:
             converters[field.converter] = _get_converter(field.converter)

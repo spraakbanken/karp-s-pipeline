@@ -2,28 +2,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
 import re
-from pydantic import BaseModel, ConfigDict, Field, RootModel, field_serializer, field_validator, computed_field
+from typing import Self, cast
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    field_serializer,
+    field_validator,
+    computed_field,
+    model_validator,
+)
 
 type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
-
-
-@dataclass
-class InferredField:
-    type: str
-    collection: bool = False
-    extra: dict[str, object] = field(default_factory=dict)
-
-    def copy(self):
-        return InferredField(type=self.type, collection=self.collection, extra=dict(self.extra))
-
-    def asdict(self) -> dict[str, object]:
-        res: dict[str, object] = {"type": self.type}
-        if self.collection:
-            res["collection"] = True
-        if self.extra:
-            res["extra"] = self.extra
-        return res
 
 
 def MultiLangMinLength(min_length: int = 1) -> type:
@@ -69,11 +61,54 @@ class NonEmptyMultiLang(MultiLangMinLength(1)):
     pass
 
 
+@dataclass
+class InferredField:
+    name: str
+    type: str
+    collection: bool = False
+    # if type==table
+    fields: dict[str, Self] = field(default_factory=dict)
+    extra: dict[str, object] = field(default_factory=dict)
+
+    def copy(self):
+        return InferredField(
+            name=self.name, type=self.type, collection=self.collection, fields=dict(self.fields), extra=dict(self.extra)
+        )
+
+    @property
+    def length(self) -> int:
+        return cast(int, self.extra["length"])
+
+    def asdict(self) -> dict[str, object]:
+        """
+        Give the dataclass as a dictionary, but skip extra
+        """
+        res: dict[str, object] = {"type": self.type, "name": self.name}
+        if self.collection:
+            res["collection"] = True
+        if self.fields:
+            res["fields"] = {name: field.asdict() for name, field in self.fields.items()}
+        return res
+
+
 class ConfiguredField(BaseModel):
     name: str
     type: str
     collection: bool = False
+    fields: dict[str, Self] = Field(default_factory=dict)
     label: MultiLang
+
+    @model_validator(mode="after")
+    def validate_fields_rules(self):
+        if not self.collection and self.fields:
+            raise ValueError("fields is only allowed when collection=True")
+
+        for child in self.fields.values():
+            if child.collection:
+                raise ValueError("inner field may not be collection")
+            if child.fields:
+                raise ValueError("inner field may only be nested one level deep")
+        return self
 
 
 CONVERTER_PATTERN = re.compile(

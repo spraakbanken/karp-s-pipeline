@@ -40,7 +40,7 @@ def _get_data_path(config) -> Path:
 
 
 def _fetch_metadata_from_api(resource_id) -> dict[str, object]:
-    url = f"https://ws.spraakbanken.gu.se/ws/metadata/v3/?resource={resource_id}"
+    url = f"https://ws.spraakbanken.gu.se/ws/metadata/v3/?resource={resource_id}&legacy=false"
     req = urllib.request.Request(url)
     try:
         with urllib.request.urlopen(req) as resp:

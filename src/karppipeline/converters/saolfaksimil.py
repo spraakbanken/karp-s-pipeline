@@ -24,8 +24,8 @@ templates = {
 }
 
 
-def create_link_update_schema(_) -> InferredField:
-    return InferredField(type="text", extra={"length": 100})
+def create_link_update_schema(field) -> InferredField:
+    return InferredField(name=field.name, type="text", extra={"length": 100})
 
 
 # TODO type
