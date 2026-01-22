@@ -1,4 +1,5 @@
 from collections.abc import Mapping
+from dataclasses import dataclass, field
 from pathlib import Path
 import re
 from pydantic import BaseModel, ConfigDict, Field, RootModel, field_serializer, field_validator, computed_field
@@ -7,11 +8,22 @@ type Entry = Mapping[str, object]
 type EntrySchema = dict[str, InferredField]
 
 
-# TODO Does not need validation, transform to data class
-class InferredField(BaseModel):
+@dataclass
+class InferredField:
     type: str
     collection: bool = False
-    extra: dict[str, object] = {}
+    extra: dict[str, object] = field(default_factory=dict)
+
+    def copy(self):
+        return InferredField(type=self.type, collection=self.collection, extra=dict(self.extra))
+
+    def asdict(self) -> dict[str, object]:
+        res: dict[str, object] = {"type": self.type}
+        if self.collection:
+            res["collection"] = True
+        if self.extra:
+            res["extra"] = self.extra
+        return res
 
 
 def MultiLangMinLength(min_length: int = 1) -> type:

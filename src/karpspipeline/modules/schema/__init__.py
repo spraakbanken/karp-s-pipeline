@@ -71,7 +71,7 @@ def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, 
     return (fields, source_order, size)
 
 
-type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float"}
+type_lookup: dict[type, str] = {int: "integer", str: "text", bool: "bool", float: "float", dict: "object"}
 
 
 def _check(key: str, field: InferredField, values: object) -> None:
@@ -125,7 +125,7 @@ def _create_fields(entries: Iterator[Entry]) -> EntrySchema:
                     continue
                 field["type"] = type_lookup[typ]
                 logger.debug(f"Adding {key} = {json.dumps(field)}")
-                schema[key] = InferredField.model_validate(field)
+                schema[key] = InferredField(**field)
             _add_max_length(schema[key])
     return schema
 
@@ -165,7 +165,7 @@ def _get_entry_converter(config: PipelineConfig, entry_schema: EntrySchema) -> C
                 entry_schema[field.target] = InferredField(type="str")
             else:
                 # TODO here we copy the schema from source field, but length may be different
-                entry_schema[field.target] = entry_schema[field.name].model_copy(deep=True)
+                entry_schema[field.target] = entry_schema[field.name].copy()
         # pre-import each converter
         if field.converter:
             converters[field.converter] = _get_converter(field.converter)

@@ -27,7 +27,7 @@ def export(config: PipelineConfig, module_data) -> list[Callable[[Entry], Entry]
 def _create_karp_backend_config(config: PipelineConfig, entry_schema: EntrySchema, name: dict[str, str]):
     karp_config = {"resource_id": config.resource_id, "resource_name": name["swe"], "fields": {}}
     for field_name, field in entry_schema.items():
-        dumped = field.model_dump(exclude_defaults=True, exclude_unset=True)
+        dumped = field.asdict()
         if field.type == "text":
             dumped["type"] = "string"
         karp_config["fields"][field_name] = dumped
