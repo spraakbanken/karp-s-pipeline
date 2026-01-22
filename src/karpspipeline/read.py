@@ -36,12 +36,12 @@ def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> l
 def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], Iterator[Entry]]:
     """
     When reading CSV data, we know the fields and their order beforehand, but not for JSON
-    (unless hard coded in configuration). We prepare sort order here, but it is not usable
+    (unless hard coded in configuration). We prepare source order here, but it is not usable
     until after the generators have been consumed.
     """
     csv_files = list(pipeline_config.workdir.glob("source/*csv"))
     tsv_files = list(pipeline_config.workdir.glob("source/*tsv"))
-    # counter - generator needs mutable object
+    # size, array because generator needs mutable object
     size = [0]
     if csv_files or tsv_files:
         fp = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
