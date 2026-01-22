@@ -66,6 +66,9 @@ def _fetch_metadata_from_api(resource_id) -> dict[str, object]:
             for language in metadata["languages"]:
                 metadata["language_codes"].append(language["code"])
             del metadata["languages"]
+            for download in metadata.get("downloads", []):
+                license = download["license"]["id"]
+                download["license"] = license
 
         return metadata
     except JSONDecodeError:
