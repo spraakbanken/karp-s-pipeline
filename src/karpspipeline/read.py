@@ -1,8 +1,8 @@
 import csv
-import json
-from typing import Iterator, OrderedDict, cast
+from typing import Iterator, cast
 
 from karpspipeline.models import Entry, PipelineConfig
+from karpspipeline.util import json
 
 
 def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> list[str]:
@@ -79,7 +79,7 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
 
         def get_entries() -> Iterator[Entry]:
             for line in fp:
-                entry = json.loads(line, object_pairs_hook=OrderedDict)
+                entry = json.loads(line)
 
                 # get the sort order from the input JSON
                 # this could be configurable to speed up
