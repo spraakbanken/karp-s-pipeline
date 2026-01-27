@@ -1,4 +1,4 @@
-# Karp-S pipeline
+# Karp pipeline
 
 This is Språkbankens tool for turning structural data, mainly lexicons, into uniform JSON data, optionally augmented with
 UD tags. It also prepares and installs data into the [Karp-S backend](https://github.com/spraakbanken/karp-s-backend) used in Språkbankens 
