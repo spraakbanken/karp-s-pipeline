@@ -1,6 +1,6 @@
-from karpspipeline.common import Map
-from karpspipeline.config import _merge_configs
-from karpspipeline.util import json
+from karppipeline.common import Map
+from karppipeline.config import _merge_configs
+from karppipeline.util import json
 
 
 def test_merge_simple():

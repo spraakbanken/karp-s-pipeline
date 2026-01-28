@@ -1,5 +1,5 @@
 [project]
-name = "karps-pipeline"
+name = "karp-pipeline"
 version = "1.0.0-dev"
 description = "Lexical infrastructure"
 readme = "README.md"
@@ -16,7 +16,7 @@ dependencies = [
 dev = ["ruff", "pytest", "basedpyright"]
 
 [project.scripts]
-karps-pipeline = "karpspipeline.cli:cli"
+karp-pipeline = "karppipeline.cli:cli"
 
 [tool.uv]
 package = true
