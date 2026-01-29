@@ -139,7 +139,7 @@ def create_karps_sql(
                     for col_name, inner_field in columns.items():
                         if inner_field.type == "text" and inner_field.length <= VARCHAR_CUTOFF:
                             indices.append(
-                                f"CREATE INDEX `{inner_table_name}_{col_name}_idx` ON `{inner_table_name}`({col_name}({inner_field.extra['length']}));"
+                                f"CREATE INDEX `{inner_table_name}_{col_name}_idx` ON `{inner_table_name}`(`{col_name}`({inner_field.extra['length']}));"
                             )
                 else:
                     if field.type == "integer":
@@ -216,7 +216,7 @@ def create_karps_sql(
                             else:
                                 keys = [field_name]
                             inserts.append(
-                                f"INSERT INTO `{pipeline_config.resource_id}__{field_name}` (__parent_id, {','.join(keys)}) VALUES ({idx}, {format_value(x)});\n"
+                                f"INSERT INTO `{pipeline_config.resource_id}__{field_name}` (__parent_id, {','.join(f'`{key}`' for key in keys)}) VALUES ({idx}, {format_value(x)});\n"
                             )
                     elif val is not None:
                         columns.append(field_name)
