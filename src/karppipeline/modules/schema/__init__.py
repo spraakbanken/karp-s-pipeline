@@ -7,12 +7,11 @@ import unicodedata
 from karppipeline.common import ImportException, create_output_dir
 from karppipeline.models import EntrySchema, PipelineConfig, Entry, InferredField
 from karppipeline.util import json
-from karppipeline.util.terminal import bold
 from karppipeline.read import read_data
 
 logger = logging.getLogger(__name__)
 
-__all__ = ["export", "dependencies"]
+__all__ = ["export", "dependencies", "load"]
 
 
 # generate schema, source_order and size, TODO sbxmetadata should be an optional dependency
@@ -57,13 +56,6 @@ def _pre_import_resource(pipeline_config: PipelineConfig) -> tuple[EntrySchema, 
     reads source file and generates a schema, return (source order, size of resource, schema)
     source order is roughly the order that fields occur in source file
     """
-    files = list(pipeline_config.workdir.glob("source/*"))
-    if len(files) != 1:
-        # we only support one input file
-        logger.warning(f"pipeline supports {bold('one')} input file in source/")
-    else:
-        logger.info(f"Reading source file: {files[0]}")
-
     source_order, size, entries = read_data(pipeline_config)
 
     # generate schema from entries - _create_field will exaust the generator and make size updated
