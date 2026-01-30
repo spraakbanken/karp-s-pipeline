@@ -1,8 +1,12 @@
 import csv
+import logging
 from typing import Iterator, cast
 
 from karppipeline.models import Entry, PipelineConfig
 from karppipeline.util import json
+from karppipeline.util.terminal import bold
+
+logger = logging.getLogger(__name__)
 
 
 def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> list[str]:
@@ -33,30 +37,39 @@ def _update_json_source_order(source_order: list[str], new_keys: list[str]) -> l
     return source_order
 
 
+def _find_source_file(pipeline_config: PipelineConfig):
+    files = list(pipeline_config.workdir.glob("source/*"))
+    if len(files) != 1:
+        # we only support one input file
+        logger.warning(f"pipeline supports {bold('one')} input file in source/ and will select the first file.")
+    logger.info(f"Reading source file: {files[0]}")
+    return files[0]
+
+
 def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], Iterator[Entry]]:
     """
     When reading CSV data, we know the fields and their order beforehand, but not for JSON
     (unless hard coded in configuration). We prepare source order here, but it is not usable
-    until after the generators have been consumed.
+    until after the generators have been consumed, same as size.
     """
-    csv_files = list(pipeline_config.workdir.glob("source/*csv"))
-    tsv_files = list(pipeline_config.workdir.glob("source/*tsv"))
+    input_file = _find_source_file(pipeline_config)
+
     # size, array because generator needs mutable object
     size = [0]
-    if csv_files or tsv_files:
-        fp = open((csv_files + tsv_files)[0], encoding="utf-8-sig")
-        if csv_files:
+    if input_file.suffix in [".csv", ".tsv"]:
+        fp = open((input_file), encoding="utf-8-sig")
+        if input_file.suffix == ".csv":
             reader = csv.reader(fp)
         else:
             reader = csv.reader(fp, dialect="excel-tab")
-        columns = next(reader, None) or []
+        source_order = next(reader, None) or []
         import_settings = cast(dict[str, dict[str, list[dict[str, str]]]], pipeline_config.import_settings)
         # type information for parsing values
         cast_fields: list[dict[str, str]] = import_settings["csv"]["cast_fields"]
 
         def get_entries() -> Iterator[Entry]:
             for row in reader:
-                entry: dict[str, str | int | float] = dict(zip(columns, row))
+                entry: dict[str, str | int | float] = dict(zip(source_order, row))
                 # parse values
                 for field in cast_fields:
                     if field["type"] == "int":
@@ -69,13 +82,9 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
                 yield entry
             fp.close()
 
-        return columns, size, get_entries()
     else:
-        jsonl_files = pipeline_config.workdir.glob("source/*jsonl")
-        fp = open(next(jsonl_files))
-
+        fp = open(input_file)
         source_order = []
-        size = [0]
 
         def get_entries() -> Iterator[Entry]:
             for line in fp:
@@ -89,4 +98,4 @@ def read_data(pipeline_config: PipelineConfig) -> tuple[list[str], list[int], It
                 yield entry
             fp.close()
 
-        return source_order, size, get_entries()
+    return source_order, size, get_entries()

@@ -108,15 +108,23 @@ def create_karps_sql(
             DROP TABLE IF EXISTS `{table_name}`;
             """
 
-        def inner(_structure):
+        def inner(_structure: Iterable[InferredField]):
             tables = []
             fields = []
             indices = []
-            for field_name, field in _structure.items():
+            for field in _structure:
+                field_name = field.name
                 if field.collection:
-                    field_copy = InferredField(type=field.type, collection=False, extra=field.extra)
-                    # currently single field, but could support collection: true & type: object in future
-                    _, inner_fields, _ = inner({"value": field_copy})
+                    if field.type == "table":
+                        columns = field.fields
+                    else:
+                        columns = {field.name: field}
+                    # same but not collection
+                    table_fields = (
+                        InferredField(name=val.name, type=val.type, collection=False, extra=val.extra)
+                        for val in columns.values()
+                    )
+                    _, inner_fields, _ = inner(table_fields)
                     inner_table_name = f"{table_name}__{field_name}"
                     tables.append(f"""
                     CREATE TABLE `{inner_table_name}` (
@@ -127,15 +135,17 @@ def create_karps_sql(
                     CHARACTER SET {karps_config.db_charset}
                     COLLATE {karps_config.db_collation};
                     """)
-                    if field.type == "text" and field.extra["length"] <= VARCHAR_CUTOFF:
-                        indices.append(
-                            f"CREATE INDEX `{inner_table_name}_idx` ON `{inner_table_name}`(value({field.extra['length']}));"
-                        )
+
+                    for col_name, inner_field in columns.items():
+                        if inner_field.type == "text" and inner_field.length <= VARCHAR_CUTOFF:
+                            indices.append(
+                                f"CREATE INDEX `{inner_table_name}_{col_name}_idx` ON `{inner_table_name}`(`{col_name}`({inner_field.extra['length']}));"
+                            )
                 else:
                     if field.type == "integer":
                         column_type = "INT"
                     elif field.type == "text":
-                        if field.extra["length"] > VARCHAR_CUTOFF:
+                        if field.length > VARCHAR_CUTOFF:
                             column_type = "TEXT"
                         else:
                             column_type = f"VARCHAR({field.extra['length']})"
@@ -149,7 +159,7 @@ def create_karps_sql(
                     fields.append(f"`{field_name}` {column_type}")
             return tables, fields, indices
 
-        tables, fields, indices = inner(structure)
+        tables, fields, indices = inner(structure.values())
 
         return (
             f"""
@@ -185,6 +195,8 @@ def create_karps_sql(
                     return format_str(val)
                 elif isinstance(val, int) or isinstance(val, float):
                     return str(val)
+                elif isinstance(val, dict):
+                    return ",".join([format_value(v) for v in val.values()])
                 else:
                     raise Exception("unknown type")
 
@@ -199,8 +211,12 @@ def create_karps_sql(
                 for field_name, val in entry.items():
                     if isinstance(val, list):
                         for x in val:
+                            if isinstance(x, dict):
+                                keys = x.keys()
+                            else:
+                                keys = [field_name]
                             inserts.append(
-                                f"INSERT INTO `{pipeline_config.resource_id}__{field_name}` (__parent_id, value) VALUES ({idx}, {format_value(x)});\n"
+                                f"INSERT INTO `{pipeline_config.resource_id}__{field_name}` (__parent_id, {','.join(f'`{key}`' for key in keys)}) VALUES ({idx}, {format_value(x)});\n"
                             )
                     elif val is not None:
                         columns.append(field_name)

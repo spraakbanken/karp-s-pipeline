@@ -88,6 +88,5 @@ def _compare_to_current_fields(config: PipelineConfig, entry_schema: EntrySchema
             new_fields.append(main_field.model_dump(exclude_unset=True))
         else:
             new_field = field.asdict()
-            new_field["name"] = key
             new_fields.append(new_field)
     return new_fields
